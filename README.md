@@ -6,7 +6,7 @@ This repository builds a statically linked runtime for type-2 AppImages in a [Al
 
 Since the runtime is linked statically, libfuse2 is no longer required on the target system.
 
-## Notes for developers
+## Notes for users
 
 As an AppImage user, you do not need this repository, as the AppImage runtime is embedded into every AppImage.
 
