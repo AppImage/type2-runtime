@@ -68,9 +68,8 @@ jobs:
         path: ./out/*
 
     - name: Upload to releases
-      if: github.event_name != 'pull_request' && github.ref_name == 'master'
+      if: github.event_name != 'pull_request' && github.ref_name == 'main'
       uses: softprops/action-gh-release@v1
       with:
         files: out/*
         tag_name: continuous
-
