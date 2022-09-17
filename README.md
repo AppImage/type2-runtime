@@ -1,11 +1,8 @@
-# static-tools ![GitHub Actions](https://github.com/probonopd/static-tools/actions/workflows/build.yaml/badge.svg)
+# type2-runtime ![GitHub Actions](https://github.com/AppImage/type2-runtime/actions/workflows/build.yaml/badge.svg)
 
-Building static binaries of some tools using an [Alpine Linux](https://alpinelinux.org/) chroot with [musl libc](https://www.musl-libc.org/):
+The runtime is the executable part of every AppImage. It mounts the payload via FUSE and executes the entrypoint.
 
-* `bsdtar` (from libarchive)
-* `mksquashfs`, `unsquashfs` (from squashfs-tools)
-* `desktop-file-install`, `desktop-file-validate`, `update-desktop-database` (from desktop-file-utils)
-* `appstreamcli` (from AppStream)
+This repository builds a statically linked runtime for type-2 AppImages in a [Alpine Linux](https://alpinelinux.org/) chroot with [musl libc](https://www.musl-libc.org/).
 
 ## Static AppImage runtime
 
@@ -23,13 +20,3 @@ export ARCHITECTURE=x86_64
 ```
 
 This whole process takes only a few seconds on GitHub Codespaces.
-
-## How to build static binaries
-
-* Build inside an Alpine Linux chroot (which gives us many dependencies from the system)
-* Build verbose (e.g., `make -j$(nproc) VERBOSE=1`)
-* Look for the gcc command that produces the executable (`-o name_of_the_executable`)
-* Replace `gcc` with `gcc -static`
-* Remove all `-W...`
-* Remove `-lpthread`
-* Some applications that use `./configure` can be configured like this: `./configure CFLAGS=-no-pie LDFLAGS=-static`- NOTE: `LDFLAGS=-static` only works for binaries, not for libraries: it will not result in having the build system provide a static library (`.a` archive)
