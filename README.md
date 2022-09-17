@@ -4,19 +4,18 @@ The runtime is the executable part of every AppImage. It mounts the payload via 
 
 This repository builds a statically linked runtime for type-2 AppImages in a [Alpine Linux](https://alpinelinux.org/) chroot with [musl libc](https://www.musl-libc.org/).
 
-## Static AppImage runtime
+## Notes for developers
 
-__PLEASE NOTE: Do NOT add additional external dependencies or files. Everything shall be implemented in one file,  `runtime.c`.__
+__Please note:__ This repository is meant to be extremely simple.
 
-__PLEASE NOTE: Do NOT add a complicated "build system" (like autotools, CMake,...) other than the existing simple Makefile and bash.__
+* Do NOT add additional external dependencies or files. Everything shall be implemented in one file. `runtime.c`  
+* Do NOT add a complicated "build system" (like autotools, CMake,...) other than the existing simple Makefile and bash
 
-## Building locally
-
-Binaries are provided on GitHub Releases. Should you prefer to build locally or on GitHub Codespaces, the following will build the contents of this repository in an Alpine container:
+Binaries are provided on GitHub Releases. Should you need to build the runtime locally or on GitHub Codespaces, the following will build the contents of this repository in an Alpine container:
 
 ```
 export ARCHITECTURE=x86_64
-./chroot_build.sh
+./chroot_build.sh # Or execute the steps in it manually
 ```
 
-This whole process takes only a few seconds on GitHub Codespaces.
+This whole process takes only a few seconds, e.g., on GitHub Codespaces.
