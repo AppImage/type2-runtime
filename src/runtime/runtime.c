@@ -574,7 +574,7 @@ void print_help(const char* appimage_path) {
             "                                  $XDG_CONFIG_HOME\n"
             "  --appimage-signature            Print digital signature embedded in AppImage\n"
             "  --appimage-updateinfo[rmation]  Print update info embedded in AppImage\n"
-            "  --appimage-version              Print version of AppImageKit\n"
+            "  --appimage-version              Print version of AppImage runtime\n"
             "\n"
             "Portable home:\n"
             "\n"
@@ -1380,6 +1380,12 @@ int main(int argc, char* argv[]) {
         fullpath[length] = '\0';
 
         print_help(fullpath);
+        exit(0);
+    }
+
+    /* Just print the runtime version and then exit */
+    if(arg && strcmp(arg,"appimage-version") == 0) {
+        fprintf(stderr,"AppImage runtime version: %s\n", GIT_COMMIT);
         exit(0);
     }
 
