@@ -27,11 +27,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-        - { qemu_arch: x86,     appimage_arch: x86 }
-        - { qemu_arch: x86_64,  appimage_arch: x86_64 }
-        - { qemu_arch: armv7,   appimage_arch: armhf }
-        - { qemu_arch: aarch64, appimage_arch: aarch64 }
+        fuse_version: [2, 3]
+        arch: [aarch64, armv7, i686, x86_64]
 
     steps:
     - name: Checkout
@@ -43,26 +40,19 @@ jobs:
            git rev-parse --short HEAD  | xargs >> src/runtime/version
 
     - name: Build
-      if: contains(matrix.qemu_arch, 'x86')
-      env:
-        ARCHITECTURE: ${{ matrix.appimage_arch }}
-      run: ./chroot_build.sh
-
-    - name: Build (qemu)
-      if: ${{ !contains(matrix.qemu_arch, 'x86') }}
-      uses: uraimo/run-on-arch-action@v2
+      uses: lalten/run-on-arch-action@amd64-support  # should be switched to `uraimo/run-on-arch-action@v2` when https://github.com/uraimo/run-on-arch-action/pull/94 is merged
       with:
-        arch: ${{ matrix.qemu_arch }}
+        arch: ${{ matrix.arch }}
         distro: alpine_latest
         env: |
-          ARCHITECTURE: ${{ matrix.appimage_arch }}
+          FUSE_VERSION: ${{ matrix.fuse_version }}
         dockerRunArgs: |
           --volume "${PWD}/out:/out"
           --volume "${PWD}/src:/src"
-        run: |
-             ./build.sh
-             # echo "artifactName=$GITHUB_RUN_NUMBER_$(date +%Y-%m-%d)-$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-    - uses: actions/upload-artifact@v3
+        run: ./build.sh
+
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v3
       with:
         name: artifacts
         path: ./out/*
