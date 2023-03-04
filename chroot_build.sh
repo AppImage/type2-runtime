@@ -44,5 +44,5 @@ sudo umount miniroot/proc miniroot/sys miniroot/dev
 if [ "$ARCHITECTURE" = "x86" ] ; then ARCHITECTURE=i686 ; fi
 
 mkdir out/
-sudo find miniroot/ -type f -executable -name 'runtime-fuse2' -exec cp {} out/runtime-fuse2-$ARCHITECTURE \;
+sudo find miniroot/ -type f -executable -name 'runtime-fuse3' -exec cp {} out/runtime-fuse3-$ARCHITECTURE \;
 sudo rm -rf miniroot/
