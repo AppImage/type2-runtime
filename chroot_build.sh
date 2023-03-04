@@ -6,7 +6,7 @@ set -ex
 # Download and extract minimal Alpine system
 #############################################
 
-wget http://dl-cdn.alpinelinux.org/alpine/v3.15/releases/$ARCHITECTURE/alpine-minirootfs-3.15.4-$ARCHITECTURE.tar.gz
+wget http://dl-cdn.alpinelinux.org/alpine/v3.17/releases/$ARCHITECTURE/alpine-minirootfs-3.17.2-$ARCHITECTURE.tar.gz
 sudo rm -rf ./miniroot  true # Clean up from previous runs
 mkdir -p ./miniroot
 cd ./miniroot
