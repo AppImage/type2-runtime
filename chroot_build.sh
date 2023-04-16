@@ -6,7 +6,7 @@ set -ex
 # Download and extract minimal Alpine system
 #############################################
 
-wget http://dl-cdn.alpinelinux.org/alpine/v3.15/releases/$ARCHITECTURE/alpine-minirootfs-3.15.4-$ARCHITECTURE.tar.gz
+wget http://dl-cdn.alpinelinux.org/alpine/v3.17/releases/$ARCHITECTURE/alpine-minirootfs-3.17.2-$ARCHITECTURE.tar.gz
 sudo rm -rf ./miniroot  true # Clean up from previous runs
 mkdir -p ./miniroot
 cd ./miniroot
@@ -44,5 +44,5 @@ sudo umount miniroot/proc miniroot/sys miniroot/dev
 if [ "$ARCHITECTURE" = "x86" ] ; then ARCHITECTURE=i686 ; fi
 
 mkdir out/
-sudo find miniroot/ -type f -executable -name 'runtime-fuse2' -exec cp {} out/runtime-fuse2-$ARCHITECTURE \;
+sudo find miniroot/ -type f -executable -name 'runtime-fuse3' -exec cp {} out/runtime-fuse3-$ARCHITECTURE \;
 sudo rm -rf miniroot/
