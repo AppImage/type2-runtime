@@ -10,6 +10,9 @@ fi
 apk update
 apk add alpine-sdk util-linux strace file autoconf automake libtool
 
+# Minimize binary size
+export CFLAGS="-ffunction-sections -fdata-sections -Os"
+
 # Build static squashfuse
 apk add fuse3-dev fuse3-static zstd-dev zlib-dev zlib-static # fuse-static fuse-dev
 wget -c -q "https://github.com/vasi/squashfuse/archive/e51978c.tar.gz"
@@ -17,7 +20,7 @@ tar xf e51978c.tar.gz
 cd squashfuse-*/
 ./autogen.sh
 ./configure --help
-./configure CFLAGS=-no-pie LDFLAGS=-static
+./configure CFLAGS="${CFLAGS} -no-pie" LDFLAGS=-static
 make -j$(nproc)
 make install
 /usr/bin/install -c -m 644 *.h '/usr/local/include/squashfuse' # ll.h
