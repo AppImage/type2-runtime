@@ -30,13 +30,13 @@ sudo cp -p /etc/resolv.conf miniroot/etc/
 
 if [ "$ARCHITECTURE" = "x86" ] || [ "$ARCHITECTURE" = "x86_64" ]; then
     echo "Architecture is x86 or x86_64, hence not using qemu-arm-static"
-    sudo chroot miniroot /bin/sh -ex build.sh
+    sudo cp build.sh miniroot/build.sh && sudo chroot miniroot /bin/sh -ex /build.sh
 else
     echo "Architecture is something else, hence using qemu-arm-static"
     sudo apt-get -y install qemu-user-static
     sudo cp $(which qemu-arm-static) miniroot/usr/bin
     # sudo chroot miniroot qemu-arm-static /bin/sh -ex <build.sh
-    sudo chroot miniroot qemu-arm-static /bin/sh -ex build.sh
+    sudo cp build.sh miniroot/build.sh && sudo chroot miniroot qemu-arm-static /bin/sh -ex /build.sh
 fi
 
 #############################################
