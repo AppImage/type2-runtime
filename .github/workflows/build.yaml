@@ -51,14 +51,10 @@ jobs:
       with:
         name: artifacts
         path: ./out/*
-        
-    - name: Upload to GitHub Releases
+
+    - name: Upload to releases
       if: github.event_name != 'pull_request' && github.ref_name == 'main'
-      uses: "marvinpinto/action-automatic-releases@latest"
+      uses: softprops/action-gh-release@v1
       with:
-        repo_token: "${{ secrets.GITHUB_TOKEN }}"
-        automatic_release_tag: "continuous"
-        prerelease: true
-        title: "Continuous Build"
-        files: |
-          ./out/*
+        files: out/*
+        tag_name: continuous
