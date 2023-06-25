@@ -24,11 +24,20 @@ sudo mount -t proc none miniroot/proc
 sudo mount -t sysfs none miniroot/sys
 sudo cp -p /etc/resolv.conf miniroot/etc/
 
+sudo apt-get -y install qemu-user-static
+cp $(which qemu-arm-static) miniroot/usr/bin
+
 #############################################
 # Run build.sh in chroot
 #############################################
 
-sudo chroot miniroot /bin/sh -ex <build.sh
+if [ "$ARCHITECTURE" = "x86" ] || [ "$ARCHITECTURE" = "x86_64" ]; then
+    echo "Architecture is x86 or x86_64, hence not using qemu-arm-static"
+    sudo chroot miniroot /bin/sh -ex <build.sh
+else
+    echo "Architecture is something else, hence using qemu-arm-static"
+    sudo chroot miniroot qemu-arm-static /bin/sh -ex <build.sh
+fi
 
 #############################################
 # Clean up chroot
