@@ -36,8 +36,8 @@ elif [ "$ARCHITECTURE" = "aarch64" ] ; then
     sudo apt-get -y install qemu-user-static
     sudo cp $(which qemu-aarch64-static) miniroot/usr/bin
     sudo cp build.sh miniroot/build.sh && sudo chroot miniroot qemu-aarch64-static /bin/sh -ex /build.sh
-elif [ "$ARCHITECTURE" = "armv7" ] ; then
-    echo "Architecture is armv7, hence using qemu-arm-static"
+elif [ "$ARCHITECTURE" = "armhf" ] ; then
+    echo "Architecture is armhf, hence using qemu-arm-static"
     sudo apt-get -y install qemu-user-static
     sudo cp $(which qemu-arm-static) miniroot/usr/bin
     sudo cp build.sh miniroot/build.sh && sudo chroot miniroot qemu-arm-static /bin/sh -ex /build.sh
