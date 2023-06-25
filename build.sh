@@ -8,7 +8,7 @@ if ! command -v apk; then
 fi
 
 apk update
-apk add alpine-sdk util-linux strace file autoconf automake libtool
+apk add alpine-sdk util-linux strace file autoconf automake libtool libzstd
 
 # Build static squashfuse
 apk add fuse3-dev fuse3-static zstd-dev zlib-dev zlib-static # fuse-static fuse-dev
