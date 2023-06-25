@@ -43,25 +43,10 @@ jobs:
            git rev-parse --short HEAD  | xargs >> src/runtime/version
 
     - name: Build
-      if: contains(matrix.qemu_arch, 'x86')
       env:
         ARCHITECTURE: ${{ matrix.appimage_arch }}
       run: ./chroot_build.sh
 
-    - name: Build (qemu)
-      if: ${{ !contains(matrix.qemu_arch, 'x86') }}
-      uses: uraimo/run-on-arch-action@v2
-      with:
-        arch: ${{ matrix.qemu_arch }}
-        distro: alpine_edge
-        env: |
-          ARCHITECTURE: ${{ matrix.appimage_arch }}
-        dockerRunArgs: |
-          --volume "${PWD}/out:/out"
-          --volume "${PWD}/src:/src"
-        run: |
-             ./build.sh
-             # echo "artifactName=$GITHUB_RUN_NUMBER_$(date +%Y-%m-%d)-$(git rev-parse --short HEAD)" >> $GITHUB_ENV
     - uses: actions/upload-artifact@v3
       with:
         name: artifacts
