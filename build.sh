@@ -19,15 +19,16 @@ cd squashfuse-*/
 ./autogen.sh
 ./configure --help
 ./configure CFLAGS=-no-pie LDFLAGS=-static
-make -j$(nproc)
+make -j"$(nproc)"
 make install
-/usr/bin/install -c -m 644 *.h '/usr/local/include/squashfuse' # ll.h
+/usr/bin/install -c -m 644 ./*.h '/usr/local/include/squashfuse' # ll.h
 cd -
 
 # Build static AppImage runtime
-export GIT_COMMIT=$(cat src/runtime/version)
+GIT_COMMIT="$(cat src/runtime/version)"
+export GIT_COMMIT
 cd src/runtime
-make runtime-fuse3 -j$(nproc)
+make runtime-fuse3 -j"$(nproc)"
 file runtime-fuse3
 strip runtime-fuse3
 ls -lh runtime-fuse3
@@ -35,4 +36,4 @@ echo -ne 'AI\x02' | dd of=runtime-fuse3 bs=1 count=3 seek=8 conv=notrunc # magic
 cd -
 
 mkdir -p out
-cp src/runtime/runtime-fuse3 out/runtime-fuse3-$ARCHITECTURE
+cp src/runtime/runtime-fuse3 "out/runtime-fuse3-${ARCHITECTURE}"
