@@ -8,7 +8,7 @@ if ! command -v apk; then
 fi
 
 apk update
-apk add alpine-sdk util-linux strace file autoconf automake libtool
+apk add alpine-sdk util-linux strace file autoconf automake libtool xz
 
 # Build static libfuse3 with patch for https://github.com/AppImage/type2-runtime/issues/10
 apk add eudev-dev gettext-dev linux-headers meson # From https://git.alpinelinux.org/aports/tree/main/fuse3/APKBUILD
