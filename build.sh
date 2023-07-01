@@ -23,6 +23,9 @@ meson configure --default-library static
 ninja install
 cd ../../
 
+# Minimize binary size
+export CFLAGS="-ffunction-sections -fdata-sections -Os"
+
 # Build static squashfuse
 apk add zstd-dev zlib-dev zlib-static # fuse3-dev fuse3-static fuse-static fuse-dev
 find / -name "libzstd.*" 2>/dev/null || true
@@ -31,7 +34,7 @@ tar xf e51978c.tar.gz
 cd squashfuse-*/
 ./autogen.sh
 ./configure --help
-./configure CFLAGS=-no-pie LDFLAGS=-static
+./configure CFLAGS="${CFLAGS} -no-pie" LDFLAGS=-static
 make -j"$(nproc)"
 make install
 /usr/bin/install -c -m 644 ./*.h '/usr/local/include/squashfuse' # ll.h
