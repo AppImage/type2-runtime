@@ -15,8 +15,7 @@ apk add eudev-dev gettext-dev linux-headers meson # From https://git.alpinelinux
 wget -c -q "https://github.com/libfuse/libfuse/releases/download/fuse-3.15.0/fuse-3.15.0.tar.xz"
 tar xf fuse-3.*.tar.xz
 cd fuse-3.*/
-wget "https://github.com/probonopd/libfuse/commit/bb5e23bb6d7ccb3a1f456fd35b716f6c3a9557c4.diff" # FIXME: Store diff locally
-patch -p1 < bb5e23bb6d7ccb3a1f456fd35b716f6c3a9557c4.diff
+patch -p1 < ../patches/libfuse/mount.c.diff
 mkdir build
 cd build
 meson setup ..
