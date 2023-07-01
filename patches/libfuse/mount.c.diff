@@ -1,0 +1,139 @@
+diff --git a/lib/mount.c b/lib/mount.c
+index d71e6fc55..1c70c8c87 100644
+--- a/lib/mount.c
++++ b/lib/mount.c
+@@ -41,7 +41,6 @@
+ #define umount2(mnt, flags) unmount(mnt, (flags == 2) ? MNT_FORCE : 0)
+ #endif
+ 
+-#define FUSERMOUNT_PROG		"fusermount3"
+ #define FUSE_COMMFD_ENV		"_FUSE_COMMFD"
+ 
+ #ifndef HAVE_FORK
+@@ -117,17 +116,87 @@ static const struct fuse_opt fuse_mount_opts[] = {
+ 	FUSE_OPT_END
+ };
+ 
++int fileExists(const char* path);
++char* findBinaryOnPath(const char* binaryName);
++
++int fileExists(const char* path) {
++    FILE* file = fopen(path, "r");
++    if (file) {
++        fclose(file);
++        return 1;
++    }
++    return 0;
++}
++
++char* findBinaryOnPath(const char* binaryName) {
++    const char* path = getenv("PATH");
++    const char* delimiter = ":";
++    char* pathCopy = strdup(path); // Create a copy of the PATH string
++
++    char* directory = strtok(pathCopy, delimiter);
++    while (directory != NULL) {
++        char fullPath[256];
++        snprintf(fullPath, sizeof(fullPath), "%s/%s", directory, binaryName);
++
++        if (fileExists(fullPath)) {
++            free(pathCopy); // Release the memory allocated by strdup
++            return strdup(fullPath);
++        }
++
++        directory = strtok(NULL, delimiter);
++    }
++
++    free(pathCopy); // Release the memory allocated by strdup
++    return NULL; // File not found on the $PATH
++}
++
++static const char *fuse_mount_prog(void)
++{
++	// Check if the FUSERMOUNT_PROG environment variable is set and if so, use it
++	const char *prog = getenv("FUSERMOUNT_PROG");
++	// Find the binary with the name specified in FUSERMOUNT_PROG on the $PATH
++	prog = findBinaryOnPath(prog);
++	if (prog) {
++		if (access(prog, X_OK) == 0)
++			return prog;
++	}
++
++	// Check if there is a binary "fusermount3" on the $PATH
++	prog = findBinaryOnPath("fusermount3");
++	if (access(prog, X_OK) == 0)
++		return prog;
++
++	// Check if there is a binary called "fusermount" on the $PATH
++	// This is known to work for our purposes
++	prog = findBinaryOnPath("fusermount");
++	if (access(prog, X_OK) == 0)
++		return prog;
++
++	// For i = 4...99, check if there is a binary called "fusermount" + i on the $PATH
++	// It is not yet known whether this will work for our purposes, but it is better than not even attempting
++	for (int i = 4; i < 100; i++) {
++		prog = findBinaryOnPath("fusermount" + i);
++		if (access(prog, X_OK) == 0)
++			return prog;
++	}
++
++	// If all else fails, return NULL
++	return NULL;
++}
++
+ static void exec_fusermount(const char *argv[])
+ {
+-	execv(FUSERMOUNT_DIR "/" FUSERMOUNT_PROG, (char **) argv);
+-	execvp(FUSERMOUNT_PROG, (char **) argv);
++	const char *fusermount_prog = fuse_mount_prog();
++	if (fusermount_prog) {
++		execv(fusermount_prog, (char **) argv);
++	}
+ }
+ 
+ void fuse_mount_version(void)
+ {
+ 	int pid = fork();
+ 	if (!pid) {
+-		const char *argv[] = { FUSERMOUNT_PROG, "--version", NULL };
++		const char *argv[] = { fuse_mount_prog(), "--version", NULL };
+ 		exec_fusermount(argv);
+ 		_exit(1);
+ 	} else if (pid != -1)
+@@ -300,7 +369,7 @@ void fuse_kern_unmount(const char *mountpoint, int fd)
+ 		return;
+ 
+ 	if(pid == 0) {
+-		const char *argv[] = { FUSERMOUNT_PROG, "-u", "-q", "-z",
++		const char *argv[] = { fuse_mount_prog(), "-u", "-q", "-z",
+ 				       "--", mountpoint, NULL };
+ 
+ 		exec_fusermount(argv);
+@@ -346,7 +415,7 @@ static int setup_auto_unmount(const char *mountpoint, int quiet)
+ 			}
+ 		}
+ 
+-		argv[a++] = FUSERMOUNT_PROG;
++		argv[a++] = fuse_mount_prog();
+ 		argv[a++] = "--auto-unmount";
+ 		argv[a++] = "--";
+ 		argv[a++] = mountpoint;
+@@ -407,7 +476,7 @@ static int fuse_mount_fusermount(const char *mountpoint, struct mount_opts *mo,
+ 			}
+ 		}
+ 
+-		argv[a++] = FUSERMOUNT_PROG;
++		argv[a++] = fuse_mount_prog();
+ 		if (opts) {
+ 			argv[a++] = "-o";
+ 			argv[a++] = opts;
+@@ -421,7 +490,7 @@ static int fuse_mount_fusermount(const char *mountpoint, struct mount_opts *mo,
+ 		snprintf(env, sizeof(env), "%i", fds[0]);
+ 		setenv(FUSE_COMMFD_ENV, env, 1);
+ 		exec_fusermount(argv);
+-		perror("fuse: failed to exec fusermount3");
++		perror("fuse: failed to exec fusermount");
+ 		_exit(1);
+ 	}
+ 
