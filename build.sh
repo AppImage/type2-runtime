@@ -21,7 +21,7 @@ mkdir build
 cd build
 meson setup ..
 meson configure --default-library static
-ninja install -v
+ninja install
 cd ../../
 
 # Build static squashfuse
