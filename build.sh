@@ -19,6 +19,7 @@ wget "https://github.com/probonopd/libfuse/commit/bb5e23bb6d7ccb3a1f456fd35b716f
 patch -p1 < bb5e23bb6d7ccb3a1f456fd35b716f6c3a9557c4.diff
 mkdir build
 cd build
+meson setup ..
 meson configure --default-library static
 ninja install -v
 cd ../../
