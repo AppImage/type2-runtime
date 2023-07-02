@@ -18,7 +18,7 @@ cd fuse-3.*/
 patch -p1 < ../patches/libfuse/mount.c.diff
 mkdir build
 cd build
-meson setup --prefix=/usr/bin ..
+meson setup --prefix=/usr ..
 meson configure --default-library static
 ninja install
 cd ../../
