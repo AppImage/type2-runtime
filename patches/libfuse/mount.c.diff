@@ -14,6 +14,17 @@ index d71e6fc55..acc1711ff 100644
  	FUSE_OPT_END
  };
  
++bool hasExecutePermission(const char *filename) {
++    struct stat file_stat;
++
++    if (stat(filename, &file_stat) == -1) {
++        return false;
++    }
++
++    // Check for execute permissions for the owner
++    return (file_stat.st_mode & S_IXUSR) ? true : false;
++}
++
 +int fileExists(const char* path);
 +char* findBinaryInFusermountDir(const char* binaryName);
 +
@@ -47,26 +58,26 @@ index d71e6fc55..acc1711ff 100644
 +	// Check if the FUSERMOUNT_PROG environment variable is set and if so, use it
 +	const char *prog = getenv("FUSERMOUNT_PROG");
 +	if (prog) {
-+		if (access(prog, X_OK) == 0)
++		if (hasExecutePermission(prog))
 +			return prog;
 +	}
 +
 +	// Check if there is a binary "fusermount3"
 +	prog = findBinaryInFusermountDir("fusermount3");
-+	if (access(prog, X_OK) == 0)
++	if (hasExecutePermission(prog))
 +		return prog;
 +
 +	// Check if there is a binary called "fusermount"
 +	// This is known to work for our purposes
 +	prog = findBinaryInFusermountDir("fusermount");
-+	if (access(prog, X_OK) == 0)
++	if (hasExecutePermission(prog))
 +		return prog;
 +
 +	// For i = 4...99, check if there is a binary called "fusermount" + i
 +	// It is not yet known whether this will work for our purposes, but it is better than not even attempting
 +	for (int i = 4; i < 100; i++) {
 +		prog = findBinaryInFusermountDir("fusermount" + i);
-+		if (access(prog, X_OK) == 0)
++		if (hasExecutePermission(prog))
 +			return prog;
 +	}
 +
