@@ -901,12 +901,13 @@ int fusefs_main(int argc, char* argv[], void (* mounted)(void)) {
 
     int err;
     sqfs_ll* ll;
+
     struct fuse_opt fuse_opts[] = {
-            {"offset=%zu", offsetof(sqfs_opts, offset), 0},
-            {"timeout=%u", offsetof(sqfs_opts, idle_timeout_secs), 0},
-            {"fsname=%s", "squashfuse", 0},
-            {"subtype=%s", "squashfuse", 0},
-            FUSE_OPT_END
+        {"offset=%zu", offsetof(sqfs_opts, offset), 0},
+        {"timeout=%u", offsetof(sqfs_opts, idle_timeout_secs), 0},
+        {"fsname=%s", (char *)"squashfuse", 0},
+        {"subtype=%s", (char *)"squashfuse", 0},
+        FUSE_OPT_END
     };
 
     struct fuse_lowlevel_ops sqfs_ll_ops;
