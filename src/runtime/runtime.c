@@ -61,6 +61,25 @@ extern int sqfs_opt_proc(void* data, const char* arg, int key, struct fuse_args*
 #include <fnmatch.h>
 #include <sys/mman.h>
 #include <stdint.h>
+#include <stdarg.h>
+
+__attribute__((format(printf, 1, 2)))
+static char* x_asprintf(const char* fmt, ...)
+{
+    char* result = NULL;
+
+    va_list args;
+    va_start(args, fmt);
+
+    if (vasprintf(&result, fmt, args) == -1) {
+        fprintf(stderr, "vasprintf(&, \"%s\", ...) failed", fmt);
+        exit(EXIT_FAILURE);
+    }
+
+    va_end(args);
+
+    return result;
+}
 
 typedef struct {
     uint32_t lo;
@@ -904,8 +923,6 @@ int fusefs_main(int argc, char* argv[], void (* mounted)(void)) {
     struct fuse_opt fuse_opts[] = {
             {"offset=%zu", offsetof(sqfs_opts, offset), 0},
             {"timeout=%u", offsetof(sqfs_opts, idle_timeout_secs), 0},
-            {"fsname=%s", "squashfuse", 0},
-            {"subtype=%s", "squashfuse", 0},
             FUSE_OPT_END
     };
 
@@ -1558,7 +1575,7 @@ int main(int argc, char* argv[]) {
         appimage_print_binary(appimage_path, offset, length);
         exit(0);
     }
-    
+
     portable_option(arg, appimage_path, "home");
     portable_option(arg, appimage_path, "config");
 
@@ -1609,8 +1626,15 @@ int main(int argc, char* argv[]) {
 
         char* dir = realpath(appimage_path, NULL);
 
-        char options[100];
-        sprintf(options, "ro,offset=%zu", fs_offset);
+        /* If "subtype" is not given, libfuse will set it to the program name,
+         * but we want "squashfuse" instead. We also need to explicitly set
+         * "fsname" to the program name, otherwise it will be set to the value
+         * of "subtype" ("squashfuse").
+         */
+        char* options = x_asprintf(
+            "ro,fsname=%s,subtype=squashfuse,offset=%zu",
+            basename(dir),
+            fs_offset);
 
         child_argv[0] = dir;
         child_argv[1] = "-o";
@@ -1628,7 +1652,10 @@ int main(int argc, char* argv[]) {
                    "for more information";
             printf("\n%s\n", title);
             printf("%s\n", body);
-        };
+        }
+
+        free(dir);
+        free(options);
     } else {
         /* in parent, child is $pid */
         int c;
