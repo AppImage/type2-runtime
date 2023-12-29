@@ -18,6 +18,7 @@ cd -
 #############################################
 
 sudo cp -r ./src miniroot/src
+sudo cp -r ./patches miniroot/patches
 
 sudo mount -o bind /dev miniroot/dev
 sudo mount -t proc none miniroot/proc
