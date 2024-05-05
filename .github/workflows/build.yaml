@@ -2,7 +2,7 @@ name: build
 
 on:
   push:
-    branches:    
+    branches:
       - 'main'
   pull_request:
 
@@ -13,7 +13,7 @@ concurrency:
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  
+
 # The default Debian shell (dash) is faster than bash at running scripts,
 # and using bash when it is not needed doesn't make sense.
 defaults:
