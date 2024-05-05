@@ -25,3 +25,8 @@ export ARCHITECTURE=x86_64
 ```
 
 This whole process takes only a few seconds, e.g., on GitHub Codespaces.
+
+
+## Signing
+
+Release builds are signed automatically using GnuPG. The corresponding public key can be found in the file `signing-pubkey.asc`.
