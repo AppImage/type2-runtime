@@ -13,7 +13,7 @@ apk add alpine-sdk util-linux strace file autoconf automake libtool xz
 # Build static libfuse3 with patch for https://github.com/AppImage/type2-runtime/issues/10
 apk add eudev-dev gettext-dev linux-headers meson # From https://git.alpinelinux.org/aports/tree/main/fuse3/APKBUILD
 wget -c -q "https://github.com/libfuse/libfuse/releases/download/fuse-3.15.0/fuse-3.15.0.tar.xz"
-[ "$(sha256sum fuse-3.*.tar.xz | cut -d' ' -f1)" = "70589cfd5e1cff7ccd6ac91c86c01be340b227285c5e200baa284e401eea2ca0" ] || exit 1
+echo "70589cfd5e1cff7ccd6ac91c86c01be340b227285c5e200baa284e401eea2ca0  fuse-3.15.0.tar.xz" | sha256sum -c
 tar xf fuse-3.*.tar.xz
 cd fuse-3.*/
 patch -p1 < ../patches/libfuse/mount.c.diff
