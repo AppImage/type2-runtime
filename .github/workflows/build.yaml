@@ -2,9 +2,12 @@ name: build
 
 on:
   push:
-    branches:
-      - 'main'
+    # branches:
+    # - 'main'
+    # NOTE: pull_request tests a potential merge conflict. push builds the branch as it would build main. Both serve separate purposes.
+    # Especially when working with CI changes, we may want to see both, hence not limiting builds to the main branch.
   pull_request:
+  workflow_dispatch:
 
 # This ensures that jobs get canceled when force-pushing
 concurrency:
