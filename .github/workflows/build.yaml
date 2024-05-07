@@ -56,7 +56,7 @@ jobs:
       env:
         SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
       # skip signing if secret is not available (e.g., if run from a PR made by somebody outside of this repository)
-      if: ${{ env.SIGNING_KEY == '' }}
+      if: ${{ env.SIGNING_KEY != '' }}
       run: |
         ./sign.sh out/runtime-*
         # copy pubkey so that it's included with the files uploaded to the release page
