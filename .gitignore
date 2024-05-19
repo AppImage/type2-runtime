@@ -50,3 +50,9 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+miniroot
+fuse-3.15.0
+out
+squa*
+*.tar.*

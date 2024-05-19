@@ -35,6 +35,7 @@ jobs:
         - { qemu_arch: x86_64,  appimage_arch: x86_64 }
         - { qemu_arch: armv7,   appimage_arch: armhf }
         - { qemu_arch: aarch64, appimage_arch: aarch64 }
+        - { qemu_arch: loong64, appimage_arch: loong64 }
 
     steps:
     - name: Checkout
@@ -46,11 +47,20 @@ jobs:
            git rev-parse --short HEAD  | xargs >> src/runtime/version
 
     - name: Build
+      if: matrix.appimage_arch != 'loong64'
       env:
         ARCHITECTURE: ${{ matrix.appimage_arch }}
       run: |
            sudo apt-get -y install qemu-user-static
            ./chroot_build.sh
+
+    - name: Build Loongarch
+      if: matrix.appimage_arch == 'loong64'
+      env:
+        ARCH: ${{ matrix.appimage_arch }}
+      run: |
+           docker run --rm --privileged loongcr.lcpu.dev/multiarch/archlinux --reset -p yes
+           ./build_docker.sh
 
     - name: Sign
       env:

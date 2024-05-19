@@ -29,6 +29,9 @@ export CFLAGS="-ffunction-sections -fdata-sections -Os"
 
 # Build static squashfuse
 apk add zstd-dev zlib-dev zlib-static # fuse3-dev fuse3-static fuse-static fuse-dev
+if [ "$ARCHITECTURE" == "loong64" ];then
+	apk add --no-cache zstd-static
+fi
 find / -name "libzstd.*" 2>/dev/null || true
 wget -c -q "https://github.com/vasi/squashfuse/archive/e51978c.tar.gz"
 echo "f544029ad30d8fbde4e4540c574b8cdc6d38b94df025a98d8551a9441f07d341  e51978c.tar.gz" | sha256sum -c
