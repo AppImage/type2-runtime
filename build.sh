@@ -6,8 +6,15 @@ if ! command -v apk; then
 	echo "This script should be run in an Alpine container"
 	exit 1
 fi
-
+if [ "$ARCHITECTURE" == "" ] && [ "$1" != "" ];then
+	ARCHITECTURE=$1
+fi
+uname -m
 apk update
+if [ "$ARCHITECTURE" == "loong64" ];then
+	# only loong64 can install this package, other arch can not install it.
+	apk add --no-cache zstd-static
+fi
 apk add alpine-sdk util-linux strace file autoconf automake libtool xz
 
 # Build static libfuse3 with patch for https://github.com/AppImage/type2-runtime/issues/10
@@ -29,9 +36,6 @@ export CFLAGS="-ffunction-sections -fdata-sections -Os"
 
 # Build static squashfuse
 apk add zstd-dev zlib-dev zlib-static # fuse3-dev fuse3-static fuse-static fuse-dev
-if [ "$ARCHITECTURE" == "loong64" ];then
-	apk add --no-cache zstd-static
-fi
 find / -name "libzstd.*" 2>/dev/null || true
 wget -c -q "https://github.com/vasi/squashfuse/archive/e51978c.tar.gz"
 echo "f544029ad30d8fbde4e4540c574b8cdc6d38b94df025a98d8551a9441f07d341  e51978c.tar.gz" | sha256sum -c

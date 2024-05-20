@@ -57,10 +57,10 @@ jobs:
     - name: Build Loongarch
       if: matrix.appimage_arch == 'loong64'
       env:
-        ARCH: ${{ matrix.appimage_arch }}
+        ARCHITECTURE: ${{ matrix.appimage_arch }}
       run: |
-           docker run --rm --privileged loongcr.lcpu.dev/multiarch/archlinux --reset -p yes
-           ./build_docker.sh
+          ./prepare_loong64.sh
+          ./chroot_build.sh
 
     - name: Sign
       env:

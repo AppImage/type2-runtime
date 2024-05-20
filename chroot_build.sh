@@ -2,11 +2,22 @@
 
 set -ex
 
+cleanup () {
+    if [ -d "./miniroot" ];then
+        sudo umount miniroot/proc miniroot/sys miniroot/dev
+    fi
+    # sudo rm -rf ./miniroot
+}
+trap cleanup EXIT
+
 #############################################
 # Download and extract minimal Alpine system
 #############################################
-
-wget "http://dl-cdn.alpinelinux.org/alpine/v3.17/releases/${ARCHITECTURE}/alpine-minirootfs-3.17.2-${ARCHITECTURE}.tar.gz"
+if [ "$ARCHITECTURE" = "loong64" ];then
+    wget -c "https://dev.alpinelinux.org/~loongarch/edge/releases/loongarch64/alpine-minirootfs-edge-240514-loongarch64.tar.gz" -O alpine-minirootfs-edge-240514-loong64.tar.gz
+else
+    wget "http://dl-cdn.alpinelinux.org/alpine/v3.17/releases/${ARCHITECTURE}/alpine-minirootfs-3.17.2-${ARCHITECTURE}.tar.gz"
+fi
 sudo rm -rf ./miniroot  true # Clean up from previous runs
 mkdir -p ./miniroot
 cd ./miniroot
@@ -40,6 +51,11 @@ elif [ "$ARCHITECTURE" = "armhf" ] ; then
     echo "Architecture is armhf, hence using qemu-arm-static"
     sudo cp "$(which qemu-arm-static)" miniroot/usr/bin
     sudo cp build.sh miniroot/build.sh && sudo chroot miniroot qemu-arm-static /bin/sh -ex /build.sh
+elif [ "$ARCHITECTURE" = "loong64" ] ; then
+    # export PATH="./tmp/qemu-user-static/usr/bin:$PATH"
+    echo "Architecture is loongarch64, hence using qemu-loongarch64-static"
+    sudo cp "$(which qemu-loongarch64-static)" miniroot/usr/bin
+    sudo cp build.sh miniroot/build.sh && sudo chroot miniroot qemu-loongarch64-static /bin/sh -ex /build.sh $ARCHITECTURE
 else
     echo "Edit chroot_build.sh to support this architecture as well, it should be easy"
     exit 1
