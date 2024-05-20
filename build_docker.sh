@@ -27,8 +27,7 @@ case "$ARCH" in
         platform=linux/arm64/v8
         ;;
     loong64)
-        # image_prefix=lcr.loongnix.cn/library # official unsatble
-        image_prefix=quay.io/msojocs/alpine-loong64
+        image_prefix=lcr.loongnix.cn/library/alpine # official unsatble
         platform=linux/loong64
         ;;
     *)
