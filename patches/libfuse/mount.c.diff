@@ -63,7 +63,7 @@
 +	// For i = 4...99, check if there is a binary called "fusermount" + i
 +	// It is not yet known whether this will work for our purposes, but it is better than not even attempting
 +	for (int i = 4; i < 100; i++) {
-+		char binaryName[20];
++		char binaryName[13];
 +		sprintf(binaryName, "fusermount%d", i);
 +		prog = findBinaryInFusermountDir(binaryName);
 +		if (prog && access(prog, X_OK) == 0)
