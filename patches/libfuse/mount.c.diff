@@ -66,7 +66,7 @@
 +		char binaryName[13];  // "fusermount" + two digits + null terminator
 +		snprintf(binaryName, sizeof(binaryName), "fusermount%d", i);
 +		prog = findBinaryInFusermountDir(binaryName);
-+		if (prog && access(prog, X_OK) == 0)
++		if (prog != NULL && access(prog, X_OK) == 0)
 +			return prog;
 +	}
 +
