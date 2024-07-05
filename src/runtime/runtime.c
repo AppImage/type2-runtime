@@ -1482,10 +1482,18 @@ int main(int argc, char* argv[]) {
      */
     if (getenv("TARGET_APPIMAGE") == NULL) {
         strcpy(appimage_path, "/proc/self/exe");
-        strcpy(argv0_path, argv[0]);
+        char *res = memccpy(argv0_path, argv[0], '\0', sizeof(argv0_path));
+        if (res == NULL) {
+            fprintf(stderr, "Program name too big\n");
+            exit(EXIT_EXECERROR);
+        }
     } else {
-        strcpy(appimage_path, getenv("TARGET_APPIMAGE"));
-        strcpy(argv0_path, getenv("TARGET_APPIMAGE"));
+        char *res1 = memccpy(appimage_path, getenv("TARGET_APPIMAGE"), '\0', sizeof(appimage_path));
+        char *res2 = memccpy(argv0_path, getenv("TARGET_APPIMAGE"), '\0', sizeof(argv0_path));
+        if (res1 == NULL || res2 == NULL) {
+            fprintf(stderr, "TARGET_APPIMAGE environment variable too big\n");
+            exit(EXIT_EXECERROR);
+        }
     }
 
     // temporary directories are required in a few places
@@ -1494,8 +1502,13 @@ int main(int argc, char* argv[]) {
 
     {
         const char* const TMPDIR = getenv("TMPDIR");
-        if (TMPDIR != NULL)
-            strcpy(temp_base, getenv("TMPDIR"));
+        if (TMPDIR != NULL) {
+            char *res = memccpy(temp_base, TMPDIR, '\0', sizeof(temp_base));
+            if (res == NULL) {
+                fprintf(stderr, "TMPDIR environemnt variable too big\n");
+                exit(EXIT_EXECERROR);
+            }
+        }
     }
 
     fs_offset = appimage_get_elf_size(appimage_path);
