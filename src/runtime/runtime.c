@@ -1470,7 +1470,7 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "Running in verbose mode\n");
     }
 
-    char appimage_path[PATH_MAX];
+    char appimage_path[PATH_MAX] = "/proc/self/exe";
     char argv0_path[PATH_MAX];
     char* arg;
 
@@ -1480,16 +1480,16 @@ int main(int argc, char* argv[]) {
      * change any time. Do not rely on it being present. We might even limit this
      * functionality specifically for builds used by appimaged.
      */
-    if (getenv("TARGET_APPIMAGE") == NULL) {
-        strcpy(appimage_path, "/proc/self/exe");
+    const char* const TARGET_APPIMAGE = getenv("TARGET_APPIMAGE");
+    if (TARGET_APPIMAGE == NULL) {
         char *res = memccpy(argv0_path, argv[0], '\0', sizeof(argv0_path));
         if (res == NULL) {
             fprintf(stderr, "Program name too big\n");
             exit(EXIT_EXECERROR);
         }
     } else {
-        char *res1 = memccpy(appimage_path, getenv("TARGET_APPIMAGE"), '\0', sizeof(appimage_path));
-        char *res2 = memccpy(argv0_path, getenv("TARGET_APPIMAGE"), '\0', sizeof(argv0_path));
+        char *res1 = memccpy(appimage_path, TARGET_APPIMAGE, '\0', sizeof(appimage_path));
+        char *res2 = memccpy(argv0_path, TARGET_APPIMAGE, '\0', sizeof(argv0_path));
         if (res1 == NULL || res2 == NULL) {
             fprintf(stderr, "TARGET_APPIMAGE environment variable too big\n");
             exit(EXIT_EXECERROR);
