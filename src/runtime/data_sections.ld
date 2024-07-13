@@ -8,7 +8,7 @@ SECTIONS
     BYTE(0x02);
   }
 
-  /* undocumented marker for tools like AppImageLauncher to temporarily allow them to recognize static runtimes that support TARGET_APPIMGE */
+  /* undocumented marker for tools like AppImageLauncher to allow them to recognize static runtimes that support TARGET_APPIMGE */
   /* will be replaced with a proper solution in type 3 */
   .static : ALIGN(0x404) {
     BYTE(0x73);
