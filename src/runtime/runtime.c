@@ -218,7 +218,7 @@ static off_t read_elf32(FILE* fd) {
     fseeko(fd, 0, SEEK_SET);
     ret = fread(&ehdr32, 1, sizeof(ehdr32), fd);
     if (ret < 0 || (size_t) ret != sizeof(ehdr32)) {
-        fprintf(stderr, "Read of ELF header from %s failed: %s\n", fname, strerror(errno));
+        fprintf(stderr, "Read of ELF header failed: %s\n", strerror(errno));
         return -1;
     }
 
@@ -230,7 +230,7 @@ static off_t read_elf32(FILE* fd) {
     fseeko(fd, last_shdr_offset, SEEK_SET);
     ret = fread(&shdr32, 1, sizeof(shdr32), fd);
     if (ret < 0 || (size_t) ret != sizeof(shdr32)) {
-        fprintf(stderr, "Read of ELF section header from %s failed: %s\n", fname, strerror(errno));
+        fprintf(stderr, "Read of ELF section header failed: %s\n", strerror(errno));
         return -1;
     }
 
@@ -250,7 +250,7 @@ static off_t read_elf64(FILE* fd) {
     fseeko(fd, 0, SEEK_SET);
     ret = fread(&ehdr64, 1, sizeof(ehdr64), fd);
     if (ret < 0 || (size_t) ret != sizeof(ehdr64)) {
-        fprintf(stderr, "Read of ELF header from %s failed: %s\n", fname, strerror(errno));
+        fprintf(stderr, "Read of ELF header failed: %s\n", strerror(errno));
         return -1;
     }
 
@@ -262,7 +262,7 @@ static off_t read_elf64(FILE* fd) {
     fseeko(fd, last_shdr_offset, SEEK_SET);
     ret = fread(&shdr64, 1, sizeof(shdr64), fd);
     if (ret < 0 || ret != sizeof(shdr64)) {
-        fprintf(stderr, "Read of ELF section header from %s failed: %s\n", fname, strerror(errno));
+        fprintf(stderr, "Read of ELF section header failed: %s\n", strerror(errno));
         return -1;
     }
 
@@ -899,8 +899,8 @@ int fusefs_main(int argc, char* argv[], void (* mounted)(void)) {
     struct fuse_opt fuse_opts[] = {
             {"offset=%zu", offsetof(sqfs_opts, offset), 0},
             {"timeout=%u", offsetof(sqfs_opts, idle_timeout_secs), 0},
-            {"fsname=%s", (const char *)"squashfuse", 0},
-            {"subtype=%s", (const char *)"squashfuse", 0},
+            {"fsname=squashfuse", 0},
+            {"subtype=squashfuse", 0},
             FUSE_OPT_END
     };
 
