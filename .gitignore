@@ -1,3 +1,6 @@
+alpine-*
+miniroot/
+
 # Prerequisites
 *.d
 
