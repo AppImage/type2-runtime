@@ -179,7 +179,6 @@ typedef struct elf32_note {
 
 typedef Elf32_Nhdr Elf_Nhdr;
 
-static char* fname;
 static Elf64_Ehdr ehdr;
 
 #if __BYTE_ORDER == __LITTLE_ENDIAN
