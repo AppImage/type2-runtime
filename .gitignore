@@ -1,5 +1,6 @@
 alpine-*
 miniroot/
+out/
 
 # Prerequisites
 *.d
