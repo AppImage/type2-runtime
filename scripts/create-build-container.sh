@@ -21,7 +21,7 @@ case "${ARCH}" in
         ;;
     armhf)
         docker_arch=arm32v7
-        docker_platform=linux/arm32/v7
+        docker_platform=linux/arm/v7
         ;;
     aarch64)
         docker_arch=arm64v8
@@ -37,16 +37,30 @@ image_name="$docker_arch"/type2-runtime-build
 
 # first, we need to build the image
 # if nothing has changed, it'll run over this within a few seconds
-this_dir="$(readlink -f "$(dirname "${BASH_SOURCE[0]}")")"
-docker build --build-arg docker_arch="$docker_arch" --platform "$docker_platform" -t "$image_name" "$this_dir"
+repo_root_dir="$(readlink -f "$(dirname "${BASH_SOURCE[0]}")"/..)"/
+docker build --build-arg docker_arch="$docker_arch" --platform "$docker_platform" -t "$image_name" "$repo_root_dir"
 
 docker_run_args=()
 [[ -t 0 ]] && docker_run_args+=("-t")
 
-# next, build the binary in a container running this image
-# we run the build as an unprivileged user to a) make sure that the build process does not require root permissions and b) make the resulting binary writable to the current user
-set -x
-docker run -u "$(id -u):$(id -g)" --platform "$docker_platform" --rm -i "${docker_run_args[@]}" -w /ws -v "$this_dir":/ws -v "$orig_cwd":/ws/out "$image_name" bash build-in-container.sh
+# split Docker args from command
+while true; do
+    # no more args left
+    if [[ "${1:-}" == "" ]]; then
+        break
+    fi
 
-# done!
-# you should now have the binary in your current working directory
+    # consume --, the remaining args will be in the $@ array
+    if [[ "$1" == "--" ]]; then
+        shift
+        break
+    fi
+
+    # append and consume Docker arg
+    docker_run_args+=("$1")
+    shift
+done
+
+# finally, we can run the build container
+# we run the build as an unprivileged user to a) make sure that the build process does not require root permissions and b) make the resulting binary writable to the current user
+exec docker run -u "$(id -u):$(id -g)" --platform "$docker_platform" --rm -i "${docker_run_args[@]}" -w /ws -v "$repo_root_dir":/ws -v "$orig_cwd":/ws/out "$image_name" "$@"

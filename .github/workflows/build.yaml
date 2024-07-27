@@ -52,7 +52,7 @@ jobs:
           # make sure to collect artifacts in a separate directory
           # makes uploading easier
           mkdir -p out
-          (cd out && ../build-with-docker.sh)
+          (cd out && ../scripts/build-with-docker.sh)
 
     - name: Sign
       env:
@@ -61,7 +61,7 @@ jobs:
       if: ${{ env.SIGNING_KEY != '' }}
       run: |
         find out
-        ./sign.sh out/runtime-*
+        scripts/sign.sh out/runtime-*
         # copy pubkey so that it's included with the files uploaded to the release page
         cp signing-pubkey.asc out/
 
