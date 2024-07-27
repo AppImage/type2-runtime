@@ -61,6 +61,7 @@ extern int sqfs_opt_proc(void* data, const char* arg, int key, struct fuse_args*
 #include <fnmatch.h>
 #include <sys/mman.h>
 #include <stdint.h>
+#include <libgen.h>
 
 typedef struct {
     uint32_t lo;
@@ -864,8 +865,10 @@ bool rm_recursive(const char* const path) {
 void build_mount_point(char* mount_dir, const char* const argv0, char const* const temp_base, const size_t templen) {
     const size_t maxnamelen = 6;
 
-    char* path_basename;
-    path_basename = basename(argv0);
+    // need to copy argv0 as it's a const value, basename intends to modify it
+    char* argv0_copy = strdup(argv0);
+    char* path_basename = basename(argv0_copy);
+    free(argv0_copy);
 
     size_t namelen = strlen(path_basename);
     // limit length of tempdir name
