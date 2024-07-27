@@ -12,6 +12,12 @@ jobs:
     name: Add artifact links to PR and issues
     runs-on: ubuntu-22.04
 
+    # Restrict permissions for the GITHUB_TOKEN, https://docs.github.com/en/actions/using-jobs/assigning-permissions-to-jobs
+    permissions:
+      issues: write
+      pull-requests: write
+      actions: read
+      
     steps:
     - name: Add artifact links to PR and issues
       if: github.event.workflow_run.event == 'pull_request'
