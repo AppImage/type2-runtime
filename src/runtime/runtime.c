@@ -1452,7 +1452,8 @@ int main(int argc, char* argv[]) {
             Md5Initialise(&ctx);
 
             char buf[4096];
-            for (size_t bytes_read; (bytes_read = fread(buf, sizeof(char), sizeof(buf), f)) > 0; ) {
+            size_t bytes_read;
+            while ((bytes_read = fread(buf, sizeof(char), sizeof(buf), f)) > 0) {
                 Md5Update(&ctx, buf, (uint32_t) bytes_read);
             }
 
