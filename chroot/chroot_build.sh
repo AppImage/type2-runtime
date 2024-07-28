@@ -2,6 +2,11 @@
 
 set -ex
 
+if [ -z "${ARCHITECTURE}" ]; then
+    echo "Usage: env ARCHITECTURE=<arch> $0"
+    exit 2
+fi
+
 # build in a temporary directory
 # this makes sure that subsequent runs do not influence each other
 # also makes cleaning up easier: just dump the entire directory
