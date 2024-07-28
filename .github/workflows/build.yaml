@@ -72,6 +72,35 @@ jobs:
           signing-pubkey.asc
           runtime-*
 
+  build-in-chroot:
+    runs-on: ubuntu-latest
+    # if: false
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - alpine_arch: x86_64
+        - alpine_arch: x86
+        - alpine_arch: armhf
+        - alpine_arch: aarch64
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Get git hash
+      run: |
+           echo -n "https://github.com/${GITHUB_REPOSITORY}/commit/" > src/runtime/version
+           git rev-parse --short HEAD  | xargs >> src/runtime/version
+
+    - name: Build in chroot
+      env:
+        ALPINE_ARCH: ${{ matrix.alpine_arch }}
+      run: |
+           sudo apt-get -y install qemu-user-static
+           chroot/chroot_build.sh
+
   upload:
     name: Create release and upload artifacts
     runs-on: ubuntu-latest
