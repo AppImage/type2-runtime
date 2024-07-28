@@ -64,3 +64,13 @@ To specify commands that should be run, use the established `--` to distinguish 
 # fish
 > env ARCH=<arch> scripts/create-build-container.sh -u $(id -u):(id -g) -- bash some-script.sh
 ```
+
+## chroot-based environment
+
+The chroot-based environment is designed for people who really do not want to use containers and/or run on systems that do not support such an environment (e.g., FreeBSD).
+
+To run a build, use the following command:
+
+```sh
+> env ARCHITECTURE=<arch> chroot/chroot_build.sh
+```
