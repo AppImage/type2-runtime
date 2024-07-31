@@ -1,4 +1,4 @@
-#! /bin/bash
+#! /bin/sh
 
 set -ex
 
@@ -14,11 +14,13 @@ fi
 tempdir="$(mktemp -d)"
 
 # need to memorize the repository root directory's path so that we can copy files from it
-repo_root_dir="$(readlink -f "$(dirname "${BASH_SOURCE[0]}")")"/..
+repo_root_dir=$(dirname "$(readlink -f "$0")")/../
 
 # cleanup takes care of unmounting and removing all downloaded files
 cleanup() {
-    sudo umount "$tempdir"/miniroot/{dev,proc,sys}
+    for i in dev proc sys; do
+        sudo umount "$tempdir"/miniroot/"$i"
+    done
     sudo rm -rf "$tempdir"
 }
 trap cleanup EXIT
