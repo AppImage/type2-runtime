@@ -68,9 +68,7 @@ jobs:
     - uses: actions/upload-artifact@v3
       with:
         name: artifacts
-        path: |
-          signing-pubkey.asc
-          runtime-*
+        path: out/*
 
   build-in-chroot:
     runs-on: ubuntu-latest
