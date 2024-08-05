@@ -862,25 +862,26 @@ bool rm_recursive(const char* const path) {
     return rv == 0;
 }
 
-void build_mount_point(char* mount_dir, const char* const argv0, char const* const temp_base, const size_t templen) {
+void build_mount_point(char* mount_dir, const char* const argv0, const char* const temp_base, const size_t templen) {
     const size_t maxnamelen = 6;
+    const size_t prefix_len = 8; // Length of "/.mount_"
+    const size_t suffix_len = 6;  // Length of "XXXXXX"
 
-    // need to copy argv0 as it's a const value, basename intends to modify it
-    char* argv0_copy = strdup(argv0);
+    // Create a modifiable copy of argv0
+    char argv0_copy[PATH_MAX]; // Ensure this is large enough for your use case
+    strncpy(argv0_copy, argv0, sizeof(argv0_copy) - 1);
+    argv0_copy[sizeof(argv0_copy) - 1] = '\0'; // Ensure null termination
+
     char* path_basename = basename(argv0_copy);
-    free(argv0_copy);
 
     size_t namelen = strlen(path_basename);
-    // limit length of tempdir name
+    // Limit length of tempdir name
     if (namelen > maxnamelen) {
         namelen = maxnamelen;
     }
 
-    strcpy(mount_dir, temp_base);
-    strncpy(mount_dir + templen, "/.mount_", 8);
-    strncpy(mount_dir + templen + 8, path_basename, namelen);
-    strncpy(mount_dir + templen + 8 + namelen, "XXXXXX", 6);
-    mount_dir[templen + 8 + namelen + 6] = 0; // null terminate destination
+    // Ensure mount_dir is large enough before copying
+    snprintf(mount_dir, templen + prefix_len + namelen + suffix_len + 1, "%s/.mount_%.*sXXXXXX", temp_base, (int)namelen, path_basename);
 }
 
 int fusefs_main(int argc, char* argv[], void (* mounted)(void)) {
