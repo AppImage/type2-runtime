@@ -16,7 +16,7 @@
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Softwaref is
+ * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
  *
  * The above copyright notice and this permission notice shall be included in
@@ -61,7 +61,6 @@ extern int sqfs_opt_proc(void* data, const char* arg, int key, struct fuse_args*
 #include <fnmatch.h>
 #include <sys/mman.h>
 #include <stdint.h>
-#include <libgen.h>
 
 typedef struct {
     uint32_t lo;
@@ -865,25 +864,8 @@ bool rm_recursive(const char* const path) {
 void build_mount_point(char* mount_dir, const char* const argv0, char const* const temp_base, const size_t templen) {
     const size_t maxnamelen = 6;
 
-    // Check for NULL argv0
-    if (argv0 == NULL) {
-        fprintf(stderr, "Error: argv0 is NULL\n");
-        return;
-    }
-
-    // need to copy argv0 as it's a const value, basename intends to modify it
-    char* argv0_copy = strdup(argv0);
-    if (argv0_copy == NULL) {
-        fprintf(stderr, "Error: strdup failed\n");
-        return;
-    }
-
-    char* path_basename = basename(argv0_copy);
-    if (path_basename == NULL) {
-        free(argv0_copy);
-        fprintf(stderr, "Error: basename returned NULL\n");
-        return;
-    }
+    char* path_basename;
+    path_basename = basename(argv0);
 
     size_t namelen = strlen(path_basename);
     // limit length of tempdir name
@@ -891,23 +873,11 @@ void build_mount_point(char* mount_dir, const char* const argv0, char const* con
         namelen = maxnamelen;
     }
 
-    // Ensure mount_dir has enough space
-    size_t required_length = templen + 8 + namelen + 6 + 1; // +1 for null terminator
-    if (strlen(temp_base) + required_length > sizeof(mount_dir)) {
-        free(argv0_copy);
-        fprintf(stderr, "Error: mount_dir does not have enough space\n");
-        return;
-    }
-
     strcpy(mount_dir, temp_base);
     strncpy(mount_dir + templen, "/.mount_", 8);
     strncpy(mount_dir + templen + 8, path_basename, namelen);
     strncpy(mount_dir + templen + 8 + namelen, "XXXXXX", 6);
-    
-    // Null terminate the destination
-    mount_dir[templen + 8 + namelen + 6] = '\0'; // null terminate destination
-
-    free(argv0_copy);
+    mount_dir[templen + 8 + namelen + 6] = 0; // null terminate destination
 }
 
 int fusefs_main(int argc, char* argv[], void (* mounted)(void)) {
