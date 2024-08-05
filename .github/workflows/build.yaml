@@ -65,19 +65,6 @@ jobs:
         # copy pubkey so that it's included with the files uploaded to the release page
         cp signing-pubkey.asc out/
 
-    - name: Trigger appimagetool Build
-      uses: actions/github-script@v5
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        script: |
-          const octokit = new Octokit({ auth: `${{ github.token }}` });
-          const response = await octokit.rest.actions.createWorkflowDispatch({
-            owner: 'AppImage',
-            repo: 'appimagetool',
-            workflow_id: 'build.yml',
-            ref: 'main'
-          });
-
     - uses: actions/upload-artifact@v3
       with:
         name: artifacts
