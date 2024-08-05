@@ -34,15 +34,15 @@ ls -lh runtime-fuse3
 # append architecture prefix
 # since uname gives the kernel architecture but we need the userland architecture, we check /bin/bash
 # all we have to do is convert uname's expected output to AppImage's semi-official suffix style
-runtime=$(file -L /bin/bash)
+runtime="$(file -L /bin/bash)"
 
-if [[ $runtime =~ 80386 ]]; then
+if [[ "$runtime" =~ 80386 ]]; then
     architecture=i686
-elif [[ $runtime =~ aarch64 ]]; then
+elif [[ "$runtime" =~ aarch64 ]]; then
     architecture=aarch64
-elif [[ $runtime =~ EABI5 ]]; then
+elif [[ "$runtime" =~ EABI5 ]]; then
     architecture=armhf
-elif [[ $runtime =~ x86_64 ]]; then
+elif [[ "$runtime" =~ x86_64 ]]; then
     architecture=x86_64
 else
     echo "Unsupported architecture: ${runtime#* }"
