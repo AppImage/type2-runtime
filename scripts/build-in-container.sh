@@ -35,21 +35,17 @@ ls -lh runtime-fuse3
 # since uname gives the kernel architecture but we need the userland architecture, we check /bin/bash
 # all we have to do is convert uname's expected output to AppImage's semi-official suffix style
 runtime=$(file -L /bin/bash)
-if [[ $runtime =~ (64|32)-bit.*ELF ]]; then
-    if [[ $runtime =~ i.86 ]]; then
-        architecture=i686
-    elif [[ $runtime =~ aarch64 ]]; then
-        architecture=aarch64
-    elif [[ $runtime =~ armv7l ]]; then
-        architecture=armhf
-    elif [[ $runtime =~ x86_64 ]]; then
-        architecture=x86_64
-    else
-        echo "Unsupported architecture: ${runtime#* }"
-        exit 2
-    fi
+
+if [[ $runtime =~ 80386 ]]; then
+    architecture=i686
+elif [[ $runtime =~ aarch64 ]]; then
+    architecture=aarch64
+elif [[ $runtime =~ armv7l ]]; then
+    architecture=armhf
+elif [[ $runtime =~ x86_64 ]]; then
+    architecture=x86_64
 else
-    echo "Unsupported binary format: ${runtime#* }"
+    echo "Unsupported architecture: ${runtime#* }"
     exit 2
 fi
 
