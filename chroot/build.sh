@@ -46,12 +46,12 @@ cd -
 GIT_COMMIT="$(cat src/runtime/version)"
 export GIT_COMMIT
 cd src/runtime
-make runtime-fuse3 -j"$(nproc)"
-file runtime-fuse3
-strip runtime-fuse3
-ls -lh runtime-fuse3
-echo -ne 'AI\x02' | dd of=runtime-fuse3 bs=1 count=3 seek=8 conv=notrunc # magic bytes, always do AFTER strip
+make runtime -j"$(nproc)"
+file runtime
+strip runtime
+ls -lh runtime
+echo -ne 'AI\x02' | dd of=runtime bs=1 count=3 seek=8 conv=notrunc # magic bytes, always do AFTER strip
 cd -
 
 mkdir -p out
-cp src/runtime/runtime-fuse3 "out/runtime-fuse3-${ARCHITECTURE}"
+cp src/runtime/runtime "out/runtime-${ARCHITECTURE}"

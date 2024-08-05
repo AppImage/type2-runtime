@@ -85,4 +85,4 @@ esac
 
 cd "$repo_root_dir"
 mkdir -p ./out/
-sudo find "$tempdir"/miniroot/ -type f -executable -name 'runtime-fuse3' -exec cp {} "out/runtime-${appimage_arch}" \;
+sudo find "$tempdir"/miniroot/ -type f -executable -name 'runtime' -exec cp {} "out/runtime-${appimage_arch}" \;

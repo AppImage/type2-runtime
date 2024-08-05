@@ -17,19 +17,19 @@ cp -R src "$build_dir"/
 pushd "$build_dir"
 
 pushd src/runtime/
-make -j"$(nproc)" runtime-fuse3
+make -j"$(nproc)" runtime
 
-file runtime-fuse3
+file runtime
 
 # optimize for size
 # TODO: should be part of the Makefile
-strip runtime-fuse3
+strip runtime
 
 # "classic" magic bytes which cannot be embedded with compiler magic, always do AFTER strip
 # TODO: should be part of the Makefile
-echo -ne 'AI\x02' | dd of=runtime-fuse3 bs=1 count=3 seek=8 conv=notrunc
+echo -ne 'AI\x02' | dd of=runtime bs=1 count=3 seek=8 conv=notrunc
 
-ls -lh runtime-fuse3
+ls -lh runtime
 
 # append architecture prefix
 # since uname gives the kernel architecture but we need the userland architecture, we check /bin/bash
@@ -49,8 +49,8 @@ else
     exit 2
 fi
 
-mv runtime-fuse3 runtime-fuse3-"$architecture"
-cp runtime-fuse3-"$architecture" "$out_dir"/
+mv runtime runtime-"$architecture"
+cp runtime-"$architecture" "$out_dir"/
 
 ls -al "$out_dir"
 
