@@ -122,7 +122,8 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const octokit = new Octokit({ auth: `${{ github.token }}` });
+            const { Octokit } = require("@octokit/rest");
+            const octokit = new Octokit({ auth: context.github.token });          
             const response = await octokit.rest.actions.createWorkflowDispatch({
               owner: 'AppImage',
               repo: 'appimagetool',
