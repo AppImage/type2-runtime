@@ -32,26 +32,26 @@ echo -ne 'AI\x02' | dd of=runtime-fuse3 bs=1 count=3 seek=8 conv=notrunc
 ls -lh runtime-fuse3
 
 # append architecture prefix
-# since we expect to be built in a Dockerized environment, i.e., either run in a native environment or have it emulated transparently with QEMU, we can just use uname
+# since uname gives the kernel architecture but we need the userland architecture, we check /bin/bash
 # all we have to do is convert uname's expected output to AppImage's semi-official suffix style
-case "$(uname -m)" in
-    x86_64)
-        architecture=x86_64
-        ;;
-    i386|i586|i686)
+runtime=$(file -L /bin/bash)
+if [[ $runtime =~ (64|32)-bit.*ELF ]]; then
+    if [[ $runtime =~ i.86 ]]; then
         architecture=i686
-        ;;
-    aarch64|arm64v8)
+    elif [[ $runtime =~ aarch64 ]]; then
         architecture=aarch64
-        ;;
-    arm32v7|armv7l|armhf)
+    elif [[ $runtime =~ armv7l ]]; then
         architecture=armhf
-        ;;
-    *)
-        echo "Unsupported architecture: $(uname -m)"
+    elif [[ $runtime =~ x86_64 ]]; then
+        architecture=x86_64
+    else
+        echo "Unsupported architecture: ${runtime#* }"
         exit 2
-        ;;
-esac
+    fi
+else
+    echo "Unsupported binary format: ${runtime#* }"
+    exit 2
+fi
 
 mv runtime-fuse3 runtime-fuse3-"$architecture"
 cp runtime-fuse3-"$architecture" "$out_dir"/
