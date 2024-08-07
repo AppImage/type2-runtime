@@ -1,3 +1,7 @@
+alpine-*
+miniroot/
+out/
+
 # Prerequisites
 *.d
 
@@ -50,3 +54,6 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# resulting binaries
+runtime-*

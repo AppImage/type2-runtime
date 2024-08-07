@@ -61,6 +61,7 @@ extern int sqfs_opt_proc(void* data, const char* arg, int key, struct fuse_args*
 #include <fnmatch.h>
 #include <sys/mman.h>
 #include <stdint.h>
+#include <libgen.h>
 
 typedef struct {
     uint32_t lo;
@@ -179,7 +180,6 @@ typedef struct elf32_note {
 
 typedef Elf32_Nhdr Elf_Nhdr;
 
-static char* fname;
 static Elf64_Ehdr ehdr;
 
 #if __BYTE_ORDER == __LITTLE_ENDIAN
@@ -218,8 +218,7 @@ static off_t read_elf32(FILE* fd) {
     fseeko(fd, 0, SEEK_SET);
     ret = fread(&ehdr32, 1, sizeof(ehdr32), fd);
     if (ret < 0 || (size_t) ret != sizeof(ehdr32)) {
-        fprintf(stderr, "Read of ELF header from %s failed: %s\n",
-                fname, strerror(errno));
+        fprintf(stderr, "Read of ELF header failed: %s\n", strerror(errno));
         return -1;
     }
 
@@ -231,8 +230,7 @@ static off_t read_elf32(FILE* fd) {
     fseeko(fd, last_shdr_offset, SEEK_SET);
     ret = fread(&shdr32, 1, sizeof(shdr32), fd);
     if (ret < 0 || (size_t) ret != sizeof(shdr32)) {
-        fprintf(stderr, "Read of ELF section header from %s failed: %s\n",
-                fname, strerror(errno));
+        fprintf(stderr, "Read of ELF section header failed: %s\n", strerror(errno));
         return -1;
     }
 
@@ -252,8 +250,7 @@ static off_t read_elf64(FILE* fd) {
     fseeko(fd, 0, SEEK_SET);
     ret = fread(&ehdr64, 1, sizeof(ehdr64), fd);
     if (ret < 0 || (size_t) ret != sizeof(ehdr64)) {
-        fprintf(stderr, "Read of ELF header from %s failed: %s\n",
-                fname, strerror(errno));
+        fprintf(stderr, "Read of ELF header failed: %s\n", strerror(errno));
         return -1;
     }
 
@@ -265,8 +262,7 @@ static off_t read_elf64(FILE* fd) {
     fseeko(fd, last_shdr_offset, SEEK_SET);
     ret = fread(&shdr64, 1, sizeof(shdr64), fd);
     if (ret < 0 || ret != sizeof(shdr64)) {
-        fprintf(stderr, "Read of ELF section header from %s failed: %s\n",
-                fname, strerror(errno));
+        fprintf(stderr, "Read of ELF section header failed: %s\n", strerror(errno));
         return -1;
     }
 
@@ -289,8 +285,7 @@ ssize_t appimage_get_elf_size(const char* fname) {
     }
     ret = fread(ehdr.e_ident, 1, EI_NIDENT, fd);
     if (ret != EI_NIDENT) {
-        fprintf(stderr, "Read of e_ident from %s failed: %s\n",
-                fname, strerror(errno));
+        fprintf(stderr, "Read of e_ident from %s failed: %s\n", fname, strerror(errno));
         return -1;
     }
     if ((ehdr.e_ident[EI_DATA] != ELFDATA2LSB) &&
@@ -867,23 +862,26 @@ bool rm_recursive(const char* const path) {
     return rv == 0;
 }
 
-void build_mount_point(char* mount_dir, const char* const argv0, char const* const temp_base, const size_t templen) {
+void build_mount_point(char* mount_dir, const char* const argv0, const char* const temp_base, const size_t templen) {
     const size_t maxnamelen = 6;
+    const size_t prefix_len = 8; // Length of "/.mount_"
+    const size_t suffix_len = 6;  // Length of "XXXXXX"
 
-    char* path_basename;
-    path_basename = basename(argv0);
+    // Create a modifiable copy of argv0
+    char argv0_copy[PATH_MAX]; // Ensure this is large enough for your use case
+    strncpy(argv0_copy, argv0, sizeof(argv0_copy) - 1);
+    argv0_copy[sizeof(argv0_copy) - 1] = '\0'; // Ensure null termination
+
+    char* path_basename = basename(argv0_copy);
 
     size_t namelen = strlen(path_basename);
-    // limit length of tempdir name
+    // Limit length of tempdir name
     if (namelen > maxnamelen) {
         namelen = maxnamelen;
     }
 
-    strcpy(mount_dir, temp_base);
-    strncpy(mount_dir + templen, "/.mount_", 8);
-    strncpy(mount_dir + templen + 8, path_basename, namelen);
-    strncpy(mount_dir + templen + 8 + namelen, "XXXXXX", 6);
-    mount_dir[templen + 8 + namelen + 6] = 0; // null terminate destination
+    // Ensure mount_dir is large enough before copying
+    snprintf(mount_dir, templen + prefix_len + namelen + suffix_len + 1, "%s/.mount_%.*sXXXXXX", temp_base, (int)namelen, path_basename);
 }
 
 int fusefs_main(int argc, char* argv[], void (* mounted)(void)) {
@@ -904,8 +902,8 @@ int fusefs_main(int argc, char* argv[], void (* mounted)(void)) {
     struct fuse_opt fuse_opts[] = {
             {"offset=%zu", offsetof(sqfs_opts, offset), 0},
             {"timeout=%u", offsetof(sqfs_opts, idle_timeout_secs), 0},
-            {"fsname=%s", "squashfuse", 0},
-            {"subtype=%s", "squashfuse", 0},
+            {"fsname=squashfuse", 0},
+            {"subtype=squashfuse", 0},
             FUSE_OPT_END
     };
 
@@ -923,7 +921,7 @@ int fusefs_main(int argc, char* argv[], void (* mounted)(void)) {
     sqfs_ll_ops.readlink = sqfs_ll_op_readlink;
     sqfs_ll_ops.listxattr = sqfs_ll_op_listxattr;
     sqfs_ll_ops.getxattr = sqfs_ll_op_getxattr;
-    sqfs_ll_ops.forget = sqfs_ll_op_forget;
+    sqfs_ll_ops.forget = (void (*)(struct fuse_req *, fuse_ino_t, uint64_t))sqfs_ll_op_forget;
     sqfs_ll_ops.statfs = stfs_ll_op_statfs;
 
     /* PARSE ARGS */
@@ -1422,7 +1420,6 @@ int main(int argc, char* argv[]) {
     }
 
     // calculate full path of AppImage
-    int length;
     char fullpath[PATH_MAX];
 
     if (getenv("TARGET_APPIMAGE") == NULL) {
@@ -1459,14 +1456,15 @@ int main(int argc, char* argv[]) {
             Md5Initialise(&ctx);
 
             char buf[4096];
-            for (size_t bytes_read; (bytes_read = fread(buf, sizeof(char), sizeof(buf), f)); bytes_read > 0) {
+            size_t bytes_read;
+            while ((bytes_read = fread(buf, sizeof(char), sizeof(buf), f)) > 0) {
                 Md5Update(&ctx, buf, (uint32_t) bytes_read);
             }
 
             MD5_HASH digest;
             Md5Finalise(&ctx, &digest);
 
-            hexlified_digest = appimage_hexlify(digest.bytes, sizeof(digest.bytes));
+            hexlified_digest = appimage_hexlify((const char*)digest.bytes, sizeof(digest.bytes));
         }
 
         char* prefix = malloc(strlen(temp_base) + 20 + strlen(hexlified_digest) + 2);

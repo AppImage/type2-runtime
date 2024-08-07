@@ -8,7 +8,7 @@ if ! command -v apk; then
 fi
 
 apk update
-apk add alpine-sdk util-linux strace file autoconf automake libtool xz
+apk add alpine-sdk util-linux strace file autoconf automake libtool xz bash
 
 # Build static libfuse3 with patch for https://github.com/AppImage/type2-runtime/issues/10
 apk add eudev-dev gettext-dev linux-headers meson # From https://git.alpinelinux.org/aports/tree/main/fuse3/APKBUILD
@@ -46,12 +46,10 @@ cd -
 GIT_COMMIT="$(cat src/runtime/version)"
 export GIT_COMMIT
 cd src/runtime
-make runtime-fuse3 -j"$(nproc)"
-file runtime-fuse3
-strip runtime-fuse3
-ls -lh runtime-fuse3
-echo -ne 'AI\x02' | dd of=runtime-fuse3 bs=1 count=3 seek=8 conv=notrunc # magic bytes, always do AFTER strip
+make runtime -j"$(nproc)"
+file runtime
+objcopy --only-keep-debug runtime runtime.debug
+strip runtime
+ls -lh runtime runtime.debug
+echo -ne 'AI\x02' | dd of=runtime bs=1 count=3 seek=8 conv=notrunc # magic bytes, always do AFTER strip
 cd -
-
-mkdir -p out
-cp src/runtime/runtime-fuse3 "out/runtime-fuse3-${ARCHITECTURE}"

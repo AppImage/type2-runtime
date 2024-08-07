@@ -14,9 +14,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
 # The default Debian shell (dash) is faster than bash at running scripts,
 # and using bash when it is not needed doesn't make sense.
 defaults:
@@ -31,10 +28,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-        - { qemu_arch: x86,     appimage_arch: x86 }
-        - { qemu_arch: x86_64,  appimage_arch: x86_64 }
-        - { qemu_arch: armv7,   appimage_arch: armhf }
-        - { qemu_arch: aarch64, appimage_arch: aarch64 }
+        - appimage_arch: i686
+        - appimage_arch: x86_64
+        - appimage_arch: armhf
+        - appimage_arch: aarch64
 
     steps:
     - name: Checkout
@@ -45,12 +42,17 @@ jobs:
            echo -n "https://github.com/${GITHUB_REPOSITORY}/commit/" > src/runtime/version
            git rev-parse --short HEAD  | xargs >> src/runtime/version
 
+    - name: Set up QEMU integration for Docker
+      run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+
     - name: Build
       env:
-        ARCHITECTURE: ${{ matrix.appimage_arch }}
+        ARCH: ${{ matrix.appimage_arch }}
       run: |
-           sudo apt-get -y install qemu-user-static
-           ./chroot_build.sh
+          # make sure to collect artifacts in a separate directory
+          # makes uploading easier
+          mkdir -p out
+          (cd out && ../scripts/build-with-docker.sh)
 
     - name: Sign
       env:
@@ -58,14 +60,44 @@ jobs:
       # skip signing if secret is not available (e.g., if run from a PR made by somebody outside of this repository)
       if: ${{ env.SIGNING_KEY != '' }}
       run: |
-        ./sign.sh out/runtime-*
+        find out
+        scripts/sign.sh out/runtime-*
         # copy pubkey so that it's included with the files uploaded to the release page
         cp signing-pubkey.asc out/
 
     - uses: actions/upload-artifact@v3
       with:
         name: artifacts
-        path: ./out/*
+        path: out/*
+
+  build-in-chroot:
+    runs-on: ubuntu-latest
+    # if: false
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - alpine_arch: x86_64
+        - alpine_arch: x86
+        - alpine_arch: armhf
+        - alpine_arch: aarch64
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Get git hash
+      run: |
+           echo -n "https://github.com/${GITHUB_REPOSITORY}/commit/" > src/runtime/version
+           git rev-parse --short HEAD  | xargs >> src/runtime/version
+
+    - name: Build in chroot
+      env:
+        ALPINE_ARCH: ${{ matrix.alpine_arch }}
+      run: |
+           sudo apt-get -y install qemu-user-static
+           chroot/chroot_build.sh
 
   upload:
     name: Create release and upload artifacts
