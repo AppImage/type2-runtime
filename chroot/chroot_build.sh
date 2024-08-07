@@ -70,7 +70,7 @@ else
 fi
 
 #############################################
-# Copy build artefacts out
+# Copy build artifacts out
 #############################################
 
 # Use the same architecture names as https://github.com/AppImage/AppImageKit/releases/
