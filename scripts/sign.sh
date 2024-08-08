@@ -2,9 +2,21 @@
 
 set -euo pipefail
 
-if [[ "${SIGNING_KEY:-}" == "" ]] || [[ ! -f "${1:-}" ]]; then
-    echo "Usage: env SIGNING_KEY=... $0 runtime-<arch>"
+usage() {
+echo "Usage: env SIGNING_KEY=... $0 runtime-<arch>"
+}
+
+if [[ "${SIGNING_KEY:-}" == "" ]]; then
+    echo "Error: signing key not specified"
+    usage
     exit 2
+fi
+
+
+if [[ ! -f "${1:-}" ]]; then
+    echo "Error: runtime parameter missing"
+    usage
+    exit 3
 fi
 
 tmpdir="$(mktemp -d)"
