@@ -1,5 +1,5 @@
 diff --git a/lib/mount.c b/lib/mount.c
-index d71e6fc55..acc1711ff 100644
+index d71e6fc55..1c70c8c87 100644
 --- a/lib/mount.c
 +++ b/lib/mount.c
 @@ -41,7 +41,6 @@
@@ -10,12 +10,12 @@ index d71e6fc55..acc1711ff 100644
  #define FUSE_COMMFD_ENV		"_FUSE_COMMFD"
  
  #ifndef HAVE_FORK
-@@ -117,17 +116,79 @@ static const struct fuse_opt fuse_mount_opts[] = {
+@@ -117,17 +116,87 @@ static const struct fuse_opt fuse_mount_opts[] = {
  	FUSE_OPT_END
  };
  
 +int fileExists(const char* path);
-+char* findBinaryInFusermountDir(const char* binaryName);
++char* findBinaryOnPath(const char* binaryName);
 +
 +int fileExists(const char* path) {
 +    FILE* file = fopen(path, "r");
@@ -26,46 +26,54 @@ index d71e6fc55..acc1711ff 100644
 +    return 0;
 +}
 +
-+char* findBinaryInFusermountDir(const char* binaryName) {
-+    // For security reasons, we do not search the binary on the $PATH;
-+	// instead, we check if the binary exists in FUSERMOUNT_DIR
-+	// as defined in meson.build
-+	char* binaryPath = malloc(strlen(FUSERMOUNT_DIR) + strlen(binaryName) + 2);
-+	strcpy(binaryPath, FUSERMOUNT_DIR);
-+	strcat(binaryPath, "/");
-+	strcat(binaryPath, binaryName);
-+	if (fileExists(binaryPath)) {
-+		return binaryPath;
-+	}
++char* findBinaryOnPath(const char* binaryName) {
++    const char* path = getenv("PATH");
++    const char* delimiter = ":";
++    char* pathCopy = strdup(path); // Create a copy of the PATH string
 +
-+	// If the binary does not exist in FUSERMOUNT_DIR, return NULL
-+	return NULL;
++    char* directory = strtok(pathCopy, delimiter);
++    while (directory != NULL) {
++        char fullPath[256];
++        snprintf(fullPath, sizeof(fullPath), "%s/%s", directory, binaryName);
++
++        if (fileExists(fullPath)) {
++            free(pathCopy); // Release the memory allocated by strdup
++            return strdup(fullPath);
++        }
++
++        directory = strtok(NULL, delimiter);
++    }
++
++    free(pathCopy); // Release the memory allocated by strdup
++    return NULL; // File not found on the $PATH
 +}
 +
 +static const char *fuse_mount_prog(void)
 +{
 +	// Check if the FUSERMOUNT_PROG environment variable is set and if so, use it
 +	const char *prog = getenv("FUSERMOUNT_PROG");
++	// Find the binary with the name specified in FUSERMOUNT_PROG on the $PATH
++	prog = findBinaryOnPath(prog);
 +	if (prog) {
 +		if (access(prog, X_OK) == 0)
 +			return prog;
 +	}
 +
-+	// Check if there is a binary "fusermount3"
-+	prog = findBinaryInFusermountDir("fusermount3");
++	// Check if there is a binary "fusermount3" on the $PATH
++	prog = findBinaryOnPath("fusermount3");
 +	if (access(prog, X_OK) == 0)
 +		return prog;
 +
-+	// Check if there is a binary called "fusermount"
++	// Check if there is a binary called "fusermount" on the $PATH
 +	// This is known to work for our purposes
-+	prog = findBinaryInFusermountDir("fusermount");
++	prog = findBinaryOnPath("fusermount");
 +	if (access(prog, X_OK) == 0)
 +		return prog;
 +
-+	// For i = 4...99, check if there is a binary called "fusermount" + i
++	// For i = 4...99, check if there is a binary called "fusermount" + i on the $PATH
 +	// It is not yet known whether this will work for our purposes, but it is better than not even attempting
 +	for (int i = 4; i < 100; i++) {
-+		prog = findBinaryInFusermountDir("fusermount" + i);
++		prog = findBinaryOnPath("fusermount" + i);
 +		if (access(prog, X_OK) == 0)
 +			return prog;
 +	}
@@ -93,7 +101,7 @@ index d71e6fc55..acc1711ff 100644
  		exec_fusermount(argv);
  		_exit(1);
  	} else if (pid != -1)
-@@ -300,7 +361,7 @@ void fuse_kern_unmount(const char *mountpoint, int fd)
+@@ -300,7 +369,7 @@ void fuse_kern_unmount(const char *mountpoint, int fd)
  		return;
  
  	if(pid == 0) {
@@ -102,7 +110,7 @@ index d71e6fc55..acc1711ff 100644
  				       "--", mountpoint, NULL };
  
  		exec_fusermount(argv);
-@@ -346,7 +407,7 @@ static int setup_auto_unmount(const char *mountpoint, int quiet)
+@@ -346,7 +415,7 @@ static int setup_auto_unmount(const char *mountpoint, int quiet)
  			}
  		}
  
@@ -111,7 +119,7 @@ index d71e6fc55..acc1711ff 100644
  		argv[a++] = "--auto-unmount";
  		argv[a++] = "--";
  		argv[a++] = mountpoint;
-@@ -407,7 +468,7 @@ static int fuse_mount_fusermount(const char *mountpoint, struct mount_opts *mo,
+@@ -407,7 +476,7 @@ static int fuse_mount_fusermount(const char *mountpoint, struct mount_opts *mo,
  			}
  		}
  
@@ -120,7 +128,7 @@ index d71e6fc55..acc1711ff 100644
  		if (opts) {
  			argv[a++] = "-o";
  			argv[a++] = opts;
-@@ -421,7 +482,7 @@ static int fuse_mount_fusermount(const char *mountpoint, struct mount_opts *mo,
+@@ -421,7 +490,7 @@ static int fuse_mount_fusermount(const char *mountpoint, struct mount_opts *mo,
  		snprintf(env, sizeof(env), "%i", fds[0]);
  		setenv(FUSE_COMMFD_ENV, env, 1);
  		exec_fusermount(argv);
@@ -128,3 +136,4 @@ index d71e6fc55..acc1711ff 100644
 +		perror("fuse: failed to exec fusermount");
  		_exit(1);
  	}
+ 
