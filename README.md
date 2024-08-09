@@ -20,7 +20,7 @@ __Please note:__ This repository is meant to be extremely simple.
 Binaries are provided on GitHub Releases. Should you need to build the runtime locally or on GitHub Codespaces, the following will build the contents of this repository in an Alpine container:
 
 ```
-export ARCHITECTURE=x86_64
+export ALPINE_ARCH=x86_64
 ./chroot_build.sh # Or execute the steps in it manually
 ```
 
