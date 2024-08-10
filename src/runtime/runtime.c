@@ -662,7 +662,8 @@ void print_help(const char* appimage_path) {
     fprintf(stderr,
             "AppImage options:\n\n"
             "  --appimage-extract [<pattern>]  Extract content from embedded filesystem image\n"
-            "                                  If pattern is passed, only extract matching files\n"
+            "                                  If pattern is passed, only extract matching\n"
+            "                                  files\n"
             "  --appimage-extract-and-run      Temporarily extract content from embedded\n"
             "                                  filesystem image, run contained application,\n"
             "                                  then delete temporarily extracted content\n"
