@@ -5,7 +5,7 @@
  * as possible (one .c file) and use as few external dependencies
  * as possible
  *
- * Copyright (c) 2004-22 Simon Peter
+ * Copyright (c) 2004-24 Simon Peter
  * Portions Copyright (c) 2007 Alexander Larsson
  * Portions from WjCryptLib_Md5 originally written by Alexander Peslyak,
    modified by WaterJuice retaining Public Domain license
@@ -559,6 +559,9 @@ void print_help(const char* appimage_path) {
             "AppImage options:\n\n"
             "  --appimage-extract [<pattern>]  Extract content from embedded filesystem image\n"
             "                                  If pattern is passed, only extract matching files\n"
+            "  --appimage-extract-and-run      Temporarily extract content from embedded\n"
+            "                                  filesystem image, run contained application,\n"
+            "                                  then delete temporarily extracted content\n"
             "  --appimage-help                 Print this help\n"
             "  --appimage-mount                Mount embedded filesystem image and print\n"
             "                                  mount point and wait for kill with Ctrl-C\n"
