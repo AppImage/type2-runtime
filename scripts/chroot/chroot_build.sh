@@ -53,17 +53,21 @@ sudo cp -p /etc/resolv.conf miniroot/etc/
 # Run build.sh in chroot
 #############################################
 
+# copy build scripts so that they are available within the chroot environment
+# build.sh combines existing scripts shared by all available build environments
+sudo cp -R "$repo_root_dir"/scripts miniroot/scripts
+
 if [ "$ALPINE_ARCH" = "x86" ] || [ "$ALPINE_ARCH" = "x86_64" ]; then
     echo "Architecture is x86 or x86_64, hence not using qemu-arm-static"
-    sudo cp "$repo_root_dir"/scripts/chroot/build.sh miniroot/build.sh && sudo chroot miniroot /bin/sh -ex /build.sh
+    sudo chroot miniroot /bin/sh -ex /scripts/chroot/build.sh
 elif [ "$ALPINE_ARCH" = "aarch64" ] ; then
     echo "Architecture is aarch64, hence using qemu-aarch64-static"
     sudo cp "$(which qemu-aarch64-static)" miniroot/usr/bin
-    sudo cp "$repo_root_dir"/scripts/chroot/build.sh miniroot/build.sh && sudo chroot miniroot qemu-aarch64-static /bin/sh -ex /build.sh
+    sudo chroot miniroot qemu-aarch64-static /bin/sh -ex /scripts/chroot/build.sh
 elif [ "$ALPINE_ARCH" = "armhf" ] ; then
     echo "Architecture is armhf, hence using qemu-arm-static"
     sudo cp "$(which qemu-arm-static)" miniroot/usr/bin
-    sudo cp "$repo_root_dir"/scripts/chroot/build.sh miniroot/build.sh && sudo chroot miniroot qemu-arm-static /bin/sh -ex /build.sh
+    sudo cp "$repo_root_dir"/scripts/chroot/build.sh miniroot/build.sh && sudo chroot miniroot qemu-arm-static /bin/sh -ex /scripts/chroot/build.sh
 else
     echo "Edit chroot_build.sh to support this architecture as well, it should be easy"
     exit 1
