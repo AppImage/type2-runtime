@@ -7,8 +7,8 @@ RUN apk add --no-cache \
     eudev-dev gettext-dev linux-headers meson \
     zstd-dev zstd-static zlib-dev zlib-static # fuse3-dev fuse3-static fuse-static fuse-dev
 
-COPY scripts/install-dependencies.sh /tmp/scripts/install-dependencies.sh
+COPY scripts/common/install-dependencies.sh /tmp/scripts/common/install-dependencies.sh
 COPY patches/ /tmp/patches/
 
 WORKDIR /tmp
-RUN bash scripts/install-dependencies.sh
+RUN bash scripts/common/install-dependencies.sh

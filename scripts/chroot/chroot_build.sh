@@ -14,7 +14,7 @@ fi
 tempdir="$(mktemp -d)"
 
 # need to memorize the repository root directory's path so that we can copy files from it
-repo_root_dir=$(dirname "$(readlink -f "$0")")/../
+repo_root_dir=$(dirname "$(readlink -f "$0")")/../../
 
 # cleanup takes care of unmounting and removing all downloaded files
 cleanup() {
@@ -55,15 +55,15 @@ sudo cp -p /etc/resolv.conf miniroot/etc/
 
 if [ "$ALPINE_ARCH" = "x86" ] || [ "$ALPINE_ARCH" = "x86_64" ]; then
     echo "Architecture is x86 or x86_64, hence not using qemu-arm-static"
-    sudo cp "$repo_root_dir"/chroot/build.sh miniroot/build.sh && sudo chroot miniroot /bin/sh -ex /build.sh
+    sudo cp "$repo_root_dir"/scripts/chroot/build.sh miniroot/build.sh && sudo chroot miniroot /bin/sh -ex /build.sh
 elif [ "$ALPINE_ARCH" = "aarch64" ] ; then
     echo "Architecture is aarch64, hence using qemu-aarch64-static"
     sudo cp "$(which qemu-aarch64-static)" miniroot/usr/bin
-    sudo cp "$repo_root_dir"/chroot/build.sh miniroot/build.sh && sudo chroot miniroot qemu-aarch64-static /bin/sh -ex /build.sh
+    sudo cp "$repo_root_dir"/scripts/chroot/build.sh miniroot/build.sh && sudo chroot miniroot qemu-aarch64-static /bin/sh -ex /build.sh
 elif [ "$ALPINE_ARCH" = "armhf" ] ; then
     echo "Architecture is armhf, hence using qemu-arm-static"
     sudo cp "$(which qemu-arm-static)" miniroot/usr/bin
-    sudo cp "$repo_root_dir"/chroot/build.sh miniroot/build.sh && sudo chroot miniroot qemu-arm-static /bin/sh -ex /build.sh
+    sudo cp "$repo_root_dir"/scripts/chroot/build.sh miniroot/build.sh && sudo chroot miniroot qemu-arm-static /bin/sh -ex /build.sh
 else
     echo "Edit chroot_build.sh to support this architecture as well, it should be easy"
     exit 1
