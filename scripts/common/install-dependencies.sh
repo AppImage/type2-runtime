@@ -22,7 +22,7 @@ wget https://github.com/libfuse/libfuse/releases/download/fuse-3.15.0/fuse-3.15.
 echo "70589cfd5e1cff7ccd6ac91c86c01be340b227285c5e200baa284e401eea2ca0  fuse-3.15.0.tar.xz" | sha256sum -c -
 tar xf fuse-3.*.tar.xz
 pushd fuse-3*/
-patch -p1 < "$this_dir"/../patches/libfuse/mount.c.diff
+patch -p1 < "$this_dir"/../../patches/libfuse/mount.c.diff
 mkdir build
 cd build
 meson setup --prefix=/usr ..

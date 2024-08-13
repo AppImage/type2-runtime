@@ -52,7 +52,7 @@ jobs:
           # make sure to collect artifacts in a separate directory
           # makes uploading easier
           mkdir -p out
-          (cd out && ../scripts/build-with-docker.sh)
+          (cd out && ../scripts/docker/build-with-docker.sh)
 
     - name: Sign
       env:
@@ -97,7 +97,7 @@ jobs:
         ALPINE_ARCH: ${{ matrix.alpine_arch }}
       run: |
            sudo apt-get -y install qemu-user-static
-           chroot/chroot_build.sh
+           scripts/chroot/chroot_build.sh
 
   upload:
     name: Create release and upload artifacts
