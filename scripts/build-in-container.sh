@@ -23,8 +23,7 @@ file runtime
 
 objcopy --only-keep-debug runtime runtime.debug
 
-# optimize for size
-strip runtime
+strip --strip-debug --strip-unneeded runtime
 
 # "classic" magic bytes which cannot be embedded with compiler magic, always do AFTER strip
 # TODO: should be part of the Makefile
@@ -51,9 +50,11 @@ else
 fi
 
 mv runtime runtime-"$architecture"
-cp runtime-"$architecture" "$out_dir"/
-
 mv runtime.debug runtime-"$architecture".debug
+
+objcopy --add-gnu-debuglink runtime-"$architecture".debug runtime-"$architecture"
+
+cp runtime-"$architecture" "$out_dir"/
 cp runtime-"$architecture".debug "$out_dir"/
 
 ls -al "$out_dir"
