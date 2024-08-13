@@ -57,3 +57,10 @@ dkms.conf
 
 # resulting binaries
 runtime-*
+
+# AppImage
+*.AppImage
+squashfs-root/
+
+# debug environments
+.vagrant/
