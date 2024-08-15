@@ -96,8 +96,9 @@ jobs:
       env:
         ALPINE_ARCH: ${{ matrix.alpine_arch }}
       run: |
-           sudo apt-get -y install qemu-user-static
-           scripts/chroot/chroot_build.sh
+        sudo apt-get update
+        sudo apt-get -y install qemu-user-static
+        scripts/chroot/chroot_build.sh
 
   upload:
     name: Create release and upload artifacts
