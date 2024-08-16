@@ -70,7 +70,7 @@ else
 fi
 
 #############################################
-# Copy build artefacts out
+# Copy build artifacts out
 #############################################
 
 # Use the same architecture names as https://github.com/AppImage/AppImageKit/releases/
@@ -86,3 +86,4 @@ esac
 cd "$repo_root_dir"
 mkdir -p ./out/
 sudo find "$tempdir"/miniroot/ -type f -executable -name 'runtime' -exec cp {} "out/runtime-${appimage_arch}" \;
+sudo find "$tempdir"/miniroot/ -type f -executable -name 'runtime.debug' -exec cp {} "out/runtime-${appimage_arch}.debug" \;

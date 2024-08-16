@@ -48,10 +48,8 @@ export GIT_COMMIT
 cd src/runtime
 make runtime -j"$(nproc)"
 file runtime
+objcopy --only-keep-debug runtime runtime.debug
 strip runtime
-ls -lh runtime
+ls -lh runtime runtime.debug
 echo -ne 'AI\x02' | dd of=runtime bs=1 count=3 seek=8 conv=notrunc # magic bytes, always do AFTER strip
 cd -
-
-mkdir -p out
-cp src/runtime/runtime "out/runtime-${ARCHITECTURE}"

@@ -21,15 +21,11 @@ make -j"$(nproc)" runtime
 
 file runtime
 
-# optimize for size
-# TODO: should be part of the Makefile
-strip runtime
+objcopy --only-keep-debug runtime runtime.debug
 
-# "classic" magic bytes which cannot be embedded with compiler magic, always do AFTER strip
-# TODO: should be part of the Makefile
-echo -ne 'AI\x02' | dd of=runtime bs=1 count=3 seek=8 conv=notrunc
+strip --strip-debug --strip-unneeded runtime
 
-ls -lh runtime
+ls -lh runtime runtime.debug
 
 # append architecture prefix
 # since uname gives the kernel architecture but we need the userland architecture, we check /bin/bash
@@ -50,7 +46,16 @@ else
 fi
 
 mv runtime runtime-"$architecture"
+mv runtime.debug runtime-"$architecture".debug
+
+objcopy --add-gnu-debuglink runtime-"$architecture".debug runtime-"$architecture"
+
+# "classic" magic bytes which cannot be embedded with compiler magic, always do AFTER strip
+# needs to be done after calls to objcopy, strip etc.
+# TODO: all these calls should be part of the Makefile
+echo -ne 'AI\x02' | dd of=runtime-"$architecture" bs=1 count=3 seek=8 conv=notrunc
+
 cp runtime-"$architecture" "$out_dir"/
+cp runtime-"$architecture".debug "$out_dir"/
 
 ls -al "$out_dir"
-
