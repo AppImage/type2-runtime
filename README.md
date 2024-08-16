@@ -26,6 +26,8 @@ export ALPINE_ARCH=x86_64
 
 This whole process takes only a few seconds, e.g., on GitHub Codespaces.
 
+See [BUILD.md](BUILD.md) for more information, including on how to build using Docker.
+
 ## Signing
 
 Release builds are signed automatically using GnuPG. The corresponding public key can be found in the file `signing-pubkey.asc`.
