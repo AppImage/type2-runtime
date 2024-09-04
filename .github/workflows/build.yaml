@@ -67,7 +67,7 @@ jobs:
 
     - uses: actions/upload-artifact@v4
       with:
-        name: artifacts
+        name: artifacts ${{ matrix.appimage_arch }}
         path: out/*
 
   build-in-chroot:
