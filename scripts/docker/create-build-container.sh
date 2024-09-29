@@ -33,12 +33,24 @@ case "${ARCH}" in
         ;;
 esac
 
+load_arg=""
+# Determine if '--load' is required
+if docker buildx version > /dev/null 2>&1; then
+    BUILDX_VERSION=$(docker buildx version | awk '{print $2}')
+    # Define the version where --load became mandatory
+    REQUIRED_VERSION="0.10.0"
+    # Compare the current version with the required version
+    if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$BUILDX_VERSION" | sort -V | head -n1)" = "$REQUIRED_VERSION" ]; then
+        load_arg="--load"
+    fi
+fi
+
 image_name="$docker_arch"/type2-runtime-build
 
 # first, we need to build the image
 # if nothing has changed, it'll run over this within a few seconds
 repo_root_dir="$(readlink -f "$(dirname "${BASH_SOURCE[0]}")")"/../../
-docker build --build-arg docker_arch="$docker_arch" --platform "$docker_platform" -t "$image_name" -f "$repo_root_dir"/scripts/docker/Dockerfile "$repo_root_dir"
+docker build --build-arg docker_arch="$docker_arch" --platform "$docker_platform" -t "$image_name" -f "$repo_root_dir"/scripts/docker/Dockerfile $load_arg "$repo_root_dir"
 
 docker_run_args=()
 [[ -t 0 ]] && docker_run_args+=("-t")
