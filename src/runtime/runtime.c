@@ -558,7 +558,8 @@ void print_help(const char* appimage_path) {
     fprintf(stderr,
             "AppImage options:\n\n"
             "  --appimage-extract [<pattern>]  Extract content from embedded filesystem image\n"
-            "                                  If pattern is passed, only extract matching files\n"
+            "                                  If pattern is passed, only extract matching\n"
+            "                                  files\n"
             "  --appimage-help                 Print this help\n"
             "  --appimage-mount                Mount embedded filesystem image and print\n"
             "                                  mount point and wait for kill with Ctrl-C\n"
@@ -1556,7 +1557,7 @@ int main(int argc, char* argv[]) {
         appimage_print_binary(appimage_path, offset, length);
         exit(0);
     }
-    
+
     portable_option(arg, appimage_path, "home");
     portable_option(arg, appimage_path, "config");
 
