@@ -8,6 +8,10 @@ if [ -z "${ALPINE_ARCH}" ]; then
     exit 2
 fi
 
+if [ "$(whoami)" = "root" ]; then
+    alias sudo=
+fi
+
 # build in a temporary directory
 # this makes sure that subsequent runs do not influence each other
 # also makes cleaning up easier: just dump the entire directory
@@ -89,5 +93,5 @@ esac
 
 cd "$repo_root_dir"
 mkdir -p ./out/
-sudo find "$tempdir"/miniroot/ -type f -executable -name 'runtime' -exec cp {} "out/runtime-${appimage_arch}" \;
-sudo find "$tempdir"/miniroot/ -type f -executable -name 'runtime.debug' -exec cp {} "out/runtime-${appimage_arch}.debug" \;
+cp "${tempdir}/miniroot/out/runtime-${appimage_arch}" out/
+cp "${tempdir}/miniroot/out/runtime-${appimage_arch}.debug" out/
