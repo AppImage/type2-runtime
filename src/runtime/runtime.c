@@ -409,7 +409,7 @@ int appimage_print_binary(char* fname, unsigned long offset, unsigned long lengt
 	return 0;
 }
 
-char* find_fusermount() {
+char* find_fusermount(bool verbose) {
     char* fusermount_base = "fusermount";
 
     char* fusermount_path = getenv("PATH");
@@ -452,9 +452,15 @@ char* find_fusermount() {
                     }
 
                     if (sb.st_uid != 0 || (sb.st_mode & S_ISUID) == 0) {
-                        // Not setuid root, skip this binary
+                        if (verbose) {
+                            printf("Not setuid root, skipping...\n");
+                        }
                         free(fusermount_full_path);
                         continue;
+                    }
+
+                    if (verbose) {
+                        printf("Found setuid root executable: %s\n", fusermount_full_path);
                     }
 
                     pid_t pid = fork();
@@ -1486,6 +1492,8 @@ int main(int argc, char* argv[]) {
         exit(0);
     }
 
+    const bool verbose = (getenv("VERBOSE") != NULL);
+
     /* extract the AppImage */
     if (arg && strcmp(arg, "appimage-extract") == 0) {
         char* pattern;
@@ -1500,8 +1508,6 @@ int main(int argc, char* argv[]) {
             fprintf(stderr, "Usage: %s --appimage-extract [<prefix>]\n", argv0_path);
             exit(1);
         }
-
-        const bool verbose = (getenv("VERBOSE") != NULL);
 
         if (!extract_appimage(appimage_path, "squashfs-root/", pattern, true, verbose)) {
             exit(1);
@@ -1563,8 +1569,6 @@ int main(int argc, char* argv[]) {
         strcat(prefix, "/appimage_extracted_");
         strcat(prefix, hexlified_digest);
         free(hexlified_digest);
-
-        const bool verbose = (getenv("VERBOSE") != NULL);
 
         if (!extract_appimage(appimage_path, prefix, NULL, false, verbose)) {
             fprintf(stderr, "Failed to extract AppImage\n");
@@ -1647,7 +1651,7 @@ int main(int argc, char* argv[]) {
         appimage_print_binary(appimage_path, offset, length);
         exit(0);
     }
-    
+
     portable_option(arg, appimage_path, "home");
     portable_option(arg, appimage_path, "config");
 
@@ -1693,10 +1697,12 @@ int main(int argc, char* argv[]) {
 
         fusermountPath = getenv("FUSERMOUNT_PROG");
         if (fusermountPath == NULL) {
-            char* new_prog = find_fusermount();
+            char* new_prog = find_fusermount(verbose);
             if (new_prog != NULL) {
                 setenv("FUSERMOUNT_PROG", new_prog, 1);
-                // printf("FUSERMOUNT_PROG set to %s\n", new_prog);
+                if (verbose) {
+                    fprintf(stderr, "FUSERMOUNT_PROG set to %s\n", new_prog);
+                }
                 free(new_prog);
             } else {
                 printf("Error: No suitable fusermount binary found on the $PATH\n");
