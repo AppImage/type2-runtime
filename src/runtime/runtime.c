@@ -1427,6 +1427,11 @@ char* appimage_hexlify(const char* bytes, const size_t numBytes) {
 }
 
 int main(int argc, char* argv[]) {
+    const bool verbose = (getenv("VERBOSE") != NULL);
+    if (verbose) {
+        fprintf(stderr, "Running in verbose mode\n");
+    }
+
     char appimage_path[PATH_MAX];
     char argv0_path[PATH_MAX];
     char* arg;
@@ -1491,8 +1496,6 @@ int main(int argc, char* argv[]) {
         printf("%zu\n", fs_offset);
         exit(0);
     }
-
-    const bool verbose = (getenv("VERBOSE") != NULL);
 
     /* extract the AppImage */
     if (arg && strcmp(arg, "appimage-extract") == 0) {
