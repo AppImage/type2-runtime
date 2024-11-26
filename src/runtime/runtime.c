@@ -737,7 +737,7 @@ void portable_option(const char* arg, const char* appimage_path, const char* nam
         }
         fullpath[length] = '\0';
 
-        snprintf(portable_dir, sizeof(portable_dir), "%.*s.%s", PATH_MAX - 1 - (int)strlen(name) - 1, fullpath, name);
+        snprintf(portable_dir, sizeof(portable_dir), "%s.%s", fullpath, name);
         if (!mkdir(portable_dir, S_IRWXU))
             fprintf(stderr, "Portable %s directory created at %s\n", name, portable_dir);
         else
