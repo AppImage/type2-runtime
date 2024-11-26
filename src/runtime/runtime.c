@@ -372,7 +372,11 @@ char* read_file_offset_length(const char* fname, unsigned long offset, unsigned 
     fseek(f, offset, SEEK_SET);
 
     char* buffer = calloc(length + 1, sizeof(char));
-    fread(buffer, length, sizeof(char), f);
+    if (fread(buffer, length, sizeof(char), f) != length) {
+        free(buffer);
+        fclose(f);
+        return NULL;
+    }
 
     fclose(f);
 
@@ -409,11 +413,27 @@ int appimage_print_binary(char* fname, unsigned long offset, unsigned long lengt
 	return 0;
 }
 
+// Function to construct name of the fusermount binary
+// matching the version of the libfuse library used; this is the preferred
+// fusermount
+char* preferred_fusermount_name() {
+    int version = fuse_version();
+    char* fusermount_name = malloc(12); // "fusermount" + max 2 digits + null terminator
+    if (fusermount_name == NULL) {
+        fprintf(stderr, "Memory allocation failed\n");
+        exit(EXIT_FAILURE);
+    }
+    sprintf(fusermount_name, "fusermount%d", version);
+    return fusermount_name;
+}
+
 char* find_fusermount(bool verbose) {
     char* fusermount_base = "fusermount";
+    char* preferred_name = preferred_fusermount_name();
 
     char* fusermount_path = getenv("PATH");
     if (fusermount_path == NULL) {
+        free(preferred_name);
         return NULL;
     }
 
@@ -429,16 +449,16 @@ char* find_fusermount(bool verbose) {
 
         struct dirent* entry;
         while ((entry = readdir(dir_ptr)) != NULL) {
-            // Check if the entry starts with "fusermount"
-            if (strncmp(entry->d_name, fusermount_base, 10) == 0) {
-                // Check if the rest of the entry is a digit
+            // Check if the entry matches the preferred name first
+            if (strcmp(entry->d_name, preferred_name) == 0 || strncmp(entry->d_name, fusermount_base, 10) == 0) {
+                // Check if the rest of the entry is a digit (for non-preferred names)
                 char* suffix = entry->d_name + 10;
                 int j = 0;
                 while (suffix[j] != '\0' && isdigit(suffix[j])) {
                     j++;
                 }
 
-                if (suffix[j] == '\0') {
+                if (suffix[j] == '\0' || strcmp(entry->d_name, preferred_name) == 0) {
                     // Construct the full path of the entry
                     char* fusermount_full_path = malloc(strlen(dir) + strlen(entry->d_name) + 2);
                     sprintf(fusermount_full_path, "%s/%s", dir, entry->d_name);
@@ -485,6 +505,7 @@ char* find_fusermount(bool verbose) {
                             // The executable was found and executed successfully
                             closedir(dir_ptr);
                             free(path_copy);
+                            free(preferred_name);
                             return fusermount_full_path;
                         }
 
@@ -499,6 +520,7 @@ char* find_fusermount(bool verbose) {
     }
 
     free(path_copy);
+    free(preferred_name);
     return NULL;
 }
 
@@ -715,7 +737,7 @@ void portable_option(const char* arg, const char* appimage_path, const char* nam
         }
         fullpath[length] = '\0';
 
-        sprintf(portable_dir, "%s.%s", fullpath, name);
+        snprintf(portable_dir, sizeof(portable_dir), "%.*s.%s", PATH_MAX - 1 - (int)strlen(name) - 1, fullpath, name);
         if (!mkdir(portable_dir, S_IRWXU))
             fprintf(stderr, "Portable %s directory created at %s\n", name, portable_dir);
         else
@@ -1747,7 +1769,10 @@ int main(int argc, char* argv[]) {
         close(keepalive_pipe[1]);
 
         /* Pause until mounted */
-        read(keepalive_pipe[0], &c, 1);
+        if (read(keepalive_pipe[0], &c, 1) == -1) {
+            perror("read error");
+            exit(EXIT_FAILURE);
+        }
 
         /* Fuse process has now daemonized, reap our child */
         waitpid(pid, NULL, 0);
