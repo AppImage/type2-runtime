@@ -5,7 +5,7 @@ FROM ${docker_arch}/alpine:latest
 RUN apk add --no-cache \
     bash alpine-sdk util-linux strace file autoconf automake libtool xz \
     eudev-dev gettext-dev linux-headers meson \
-    zstd-dev zstd-static zlib-dev zlib-static # fuse3-dev fuse3-static fuse-static fuse-dev
+    zstd-dev zstd-static zlib-dev zlib-static clang
 
 COPY scripts/common/install-dependencies.sh /tmp/scripts/common/install-dependencies.sh
 COPY patches/ /tmp/patches/
