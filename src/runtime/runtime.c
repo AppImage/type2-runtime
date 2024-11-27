@@ -1032,7 +1032,7 @@ int fusefs_main(int argc, char* argv[], void (* mounted)(void)) {
     opts.offset = 0;
     opts.idle_timeout_secs = 0;
     if (fuse_opt_parse(&args, &opts, fuse_opts, sqfs_opt_proc) == -1)
-        sqfs_usage(argv[0], true);
+        sqfs_usage(argv[0], true, true);
 
 #if FUSE_USE_VERSION >= 30
     if (fuse_parse_cmdline(&args, &fuse_cmdline_opts) != 0)
@@ -1042,9 +1042,9 @@ int fusefs_main(int argc, char* argv[], void (* mounted)(void)) {
                                &fuse_cmdline_opts.mt,
                                &fuse_cmdline_opts.foreground) == -1)
 #endif
-        sqfs_usage(argv[0], true);
+        sqfs_usage(argv[0], true, true);
     if (fuse_cmdline_opts.mountpoint == NULL)
-        sqfs_usage(argv[0], true);
+        sqfs_usage(argv[0], true, true);
 
     /* fuse_daemonize() will unconditionally clobber fds 0-2.
      *
