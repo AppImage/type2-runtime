@@ -1031,7 +1031,7 @@ int fusefs_main(int argc, char* argv[], void (* mounted)(void)) {
     opts.image = NULL;
     opts.mountpoint = 0;
     opts.offset = 0;
-    opts.idle_timeout_secs = 0;
+    opts.idle_timeout_secs = 1;
     if (fuse_opt_parse(&args, &opts, fuse_opts, sqfs_opt_proc) == -1)
         sqfs_usage(argv[0], true, true);
 
