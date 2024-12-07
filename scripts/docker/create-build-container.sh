@@ -12,19 +12,15 @@ fi
 # guess architecture name compatible with Docker from $ARCH
 case "${ARCH}" in
     x86_64)
-        docker_arch=amd64
         docker_platform=linux/amd64
         ;;
     i686)
-        docker_arch=i386
         docker_platform=linux/i386
         ;;
     armhf)
-        docker_arch=arm32v7
         docker_platform=linux/arm/v7
         ;;
     aarch64)
-        docker_arch=arm64v8
         docker_platform=linux/arm64/v8
         ;;
     *)
@@ -33,12 +29,12 @@ case "${ARCH}" in
         ;;
 esac
 
-image_name="$docker_arch"/type2-runtime-build
+image_name=type2-runtime-build
 
 # first, we need to build the image
 # if nothing has changed, it'll run over this within a few seconds
 repo_root_dir="$(readlink -f "$(dirname "${BASH_SOURCE[0]}")")"/../../
-docker build --build-arg docker_arch="$docker_arch" --platform "$docker_platform" -t "$image_name" -f "$repo_root_dir"/scripts/docker/Dockerfile "$repo_root_dir"
+docker build --platform "$docker_platform" -t "$image_name" -f "$repo_root_dir"/scripts/docker/Dockerfile "$repo_root_dir"
 
 docker_run_args=()
 [[ -t 0 ]] && docker_run_args+=("-t")
