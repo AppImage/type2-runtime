@@ -1,5 +1,4 @@
-ARG docker_arch
-FROM ${docker_arch}/alpine:3.20
+FROM alpine:3.20
 
 # includes dependencies from https://git.alpinelinux.org/aports/tree/main/fuse3/APKBUILD
 RUN apk add --no-cache \
