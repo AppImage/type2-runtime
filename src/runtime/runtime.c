@@ -472,6 +472,13 @@ char* find_fusermount(bool verbose) {
 
                     if (pid == 0) {
                         // Child process
+
+                        // close stdout and stderr if not in verbose mode
+                        if (!verbose) {
+                            close(1);
+                            close(2);
+                        }
+
                         char* args[] = {fusermount_full_path, "--version", NULL};
                         execvp(fusermount_full_path, args);
                         // If execvp returns, it means the executable was not found
