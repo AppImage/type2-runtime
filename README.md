@@ -21,7 +21,7 @@ Binaries are provided on GitHub Releases. Should you need to build the runtime l
 
 ```
 export ALPINE_ARCH=x86_64
-./chroot/chroot_build.sh # Or execute the steps in it manually
+./scripts/chroot/chroot_build.sh # Or execute the steps in it manually
 ```
 
 This whole process takes only a few seconds, e.g., on GitHub Codespaces.
