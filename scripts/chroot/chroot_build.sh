@@ -89,5 +89,5 @@ esac
 
 cd "$repo_root_dir"
 mkdir -p ./out/
-sudo find "$tempdir"/miniroot/ -type f -executable -name 'runtime' -exec cp {} "out/runtime-${appimage_arch}" \;
-sudo find "$tempdir"/miniroot/ -type f -executable -name 'runtime.debug' -exec cp {} "out/runtime-${appimage_arch}.debug" \;
+sudo find "$tempdir"/miniroot/ -type f -executable -name "runtime-${appimage_arch}"  -exec cp {} "out/runtime-${appimage_arch}" \;
+sudo find "$tempdir"/miniroot/ -type f -executable -name "runtime-${appimage_arch}.debug"  -exec cp {} "out/runtime-${appimage_arch}.debug" \;

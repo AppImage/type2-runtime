@@ -33,9 +33,9 @@ popd
 # Minimize binary size
 export CFLAGS="-ffunction-sections -fdata-sections -Os"
 
-wget "https://github.com/vasi/squashfuse/archive/e51978c.tar.gz"
-echo "f544029ad30d8fbde4e4540c574b8cdc6d38b94df025a98d8551a9441f07d341  e51978c.tar.gz" | sha256sum -c -
-tar xf e51978c.tar.gz
+wget "https://github.com/vasi/squashfuse/archive/0.5.2.tar.gz"
+echo "db0238c5981dabbd80ee09ae15387f390091668ca060a7bc38047912491443d3  0.5.2.tar.gz" | sha256sum -c -
+tar xf 0.5.2.tar.gz
 pushd squashfuse-*/
 ./autogen.sh
 ./configure CFLAGS="${CFLAGS} -no-pie" LDFLAGS=-static
