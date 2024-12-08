@@ -1,5 +1,32 @@
 # How to build the runtime
 
+We maintain and provide two official ways to build the runtime:
+
+- a Docker-based setup that caches dependencies and isolates the build environment from the system
+- a `chroot`-based method that can be used in isolated environments like, e.g., GitHub codespaces, if you cannot use Docker
+
+**Please note: We recommend regular users to use the Docker-based setup whenever possible!** The chroot based setup imposes a risk to break your local machine. It is meant **only** for environments that are otherwise isolated or reproducible, e.g., GitHub codespaces. 
+
+
+## chroot-based environment
+
+The chroot-based environment is designed for people who really do not want to use containers and/or run on systems that do not support such an environment (e.g., GitHub codespaces, FreeBSD).
+
+To run a build, use the following command:
+
+```sh
+> env ALPINE_ARCH=<arch>  chroot/chroot_build.sh
+
+# example calls:
+> env ALPINE_ARCH=x86_64  chroot/chroot_build.sh
+> env ALPINE_ARCH=i686    chroot/chroot_build.sh
+> env ALPINE_ARCH=armhf   chroot/chroot_build.sh
+> env ALPINE_ARCH=aarch64 chroot/chroot_build.sh
+```
+
+The script will download an Alpine miniroot image, extract it into a specific location, bind-mount a set of temporary filesystems (e.g., `/proc`) there, chroot into there and run the build script. It attempts to unmount the previously mounted paths again.
+
+
 ## Docker
 
 As the runtime build requires a special environment with specific dependencies prebuilt and installed as static binaries, we provide a containerized build environment. We use Docker as a runtime for now.
@@ -65,12 +92,3 @@ To specify commands that should be run, use the established `--` to distinguish 
 > env ARCH=<arch> scripts/create-build-container.sh -u $(id -u):(id -g) -- bash some-script.sh
 ```
 
-## chroot-based environment
-
-The chroot-based environment is designed for people who really do not want to use containers and/or run on systems that do not support such an environment (e.g., FreeBSD).
-
-To run a build, use the following command:
-
-```sh
-> env ARCHITECTURE=<arch> chroot/chroot_build.sh
-```
