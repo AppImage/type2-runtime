@@ -38,7 +38,7 @@ echo "db0238c5981dabbd80ee09ae15387f390091668ca060a7bc38047912491443d3  0.5.2.ta
 tar xf 0.5.2.tar.gz
 pushd squashfuse-*/
 ./autogen.sh
-./configure CFLAGS="${CFLAGS} -no-pie" LDFLAGS=-static
+./configure LDFLAGS="-static"
 make -j"$(nproc)"
 make install
 /usr/bin/install -c -m 644 ./*.h '/usr/local/include/squashfuse'
