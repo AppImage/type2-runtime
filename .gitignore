@@ -64,3 +64,6 @@ squashfs-root/
 
 # debug environments
 .vagrant/
+
+# build products
+src/runtime/runtime
