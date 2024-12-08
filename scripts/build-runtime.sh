@@ -34,6 +34,8 @@ runtime="$(file -L /bin/bash)"
 
 if [[ "$runtime" =~ 80386 ]]; then
     architecture=i686
+elif [[ "$runtime" =~ i386 ]]; then
+    architecture=i686
 elif [[ "$runtime" =~ aarch64 ]]; then
     architecture=aarch64
 elif [[ "$runtime" =~ EABI5 ]]; then
