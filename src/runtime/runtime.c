@@ -472,6 +472,13 @@ char* find_fusermount(bool verbose) {
 
                     if (pid == 0) {
                         // Child process
+
+                        // close stdout and stderr if not in verbose mode
+                        if (!verbose) {
+                            close(1);
+                            close(2);
+                        }
+
                         char* args[] = {fusermount_full_path, "--version", NULL};
                         execvp(fusermount_full_path, args);
                         // If execvp returns, it means the executable was not found
@@ -998,6 +1005,7 @@ int fusefs_main(int argc, char* argv[], void (* mounted)(void)) {
     sqfs_ll* ll;
     struct fuse_opt fuse_opts[] = {
             {"offset=%zu", offsetof(sqfs_opts, offset), 0},
+            {"auto_unmount", 0},
             {"timeout=%u", offsetof(sqfs_opts, idle_timeout_secs), 0},
             {"fsname=squashfuse", 0},
             {"subtype=squashfuse", 0},
@@ -1030,9 +1038,9 @@ int fusefs_main(int argc, char* argv[], void (* mounted)(void)) {
     opts.image = NULL;
     opts.mountpoint = 0;
     opts.offset = 0;
-    opts.idle_timeout_secs = 0;
+    opts.idle_timeout_secs = 1;
     if (fuse_opt_parse(&args, &opts, fuse_opts, sqfs_opt_proc) == -1)
-        sqfs_usage(argv[0], true);
+        sqfs_usage(argv[0], true, true);
 
 #if FUSE_USE_VERSION >= 30
     if (fuse_parse_cmdline(&args, &fuse_cmdline_opts) != 0)
@@ -1042,9 +1050,9 @@ int fusefs_main(int argc, char* argv[], void (* mounted)(void)) {
                                &fuse_cmdline_opts.mt,
                                &fuse_cmdline_opts.foreground) == -1)
 #endif
-        sqfs_usage(argv[0], true);
+        sqfs_usage(argv[0], true, true);
     if (fuse_cmdline_opts.mountpoint == NULL)
-        sqfs_usage(argv[0], true);
+        sqfs_usage(argv[0], true, true);
 
     /* fuse_daemonize() will unconditionally clobber fds 0-2.
      *
