@@ -15,13 +15,14 @@ The chroot-based environment is designed for people who really do not want to us
 To run a build, use the following command:
 
 ```sh
-> env ALPINE_ARCH=<arch>  chroot/chroot_build.sh
+> env ALPINE_ARCH=<arch>  scripts/chroot/chroot_build.sh
 
 # example calls:
-> env ALPINE_ARCH=x86_64  chroot/chroot_build.sh
-> env ALPINE_ARCH=i686    chroot/chroot_build.sh
-> env ALPINE_ARCH=armhf   chroot/chroot_build.sh
-> env ALPINE_ARCH=aarch64 chroot/chroot_build.sh
+> env ALPINE_ARCH=x86_64      scripts/chroot/chroot_build.sh
+> env ALPINE_ARCH=i686        scripts/chroot/chroot_build.sh
+> env ALPINE_ARCH=armhf       scripts/chroot/chroot_build.sh
+> env ALPINE_ARCH=aarch64     scripts/chroot/chroot_build.sh
+> env ALPINE_ARCH=loongarch64 scripts/chroot/chroot_build.sh
 ```
 
 The script will download an Alpine miniroot image, extract it into a specific location, bind-mount a set of temporary filesystems (e.g., `/proc`) there, chroot into there and run the build script. It attempts to unmount the previously mounted paths again.

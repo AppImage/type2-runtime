@@ -42,6 +42,8 @@ elif [[ "$runtime" =~ EABI5 ]]; then
     architecture=armhf
 elif [[ "$runtime" =~ x86-64 ]]; then
     architecture=x86_64
+elif [[ "$runtime" =~ "64-bit .*, LoongArch" ]]; then
+    architecture=loongarch64
 else
     echo "Unsupported architecture: ${runtime#* }"
     exit 2
