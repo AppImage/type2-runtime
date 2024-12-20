@@ -35,7 +35,11 @@ cd "$tempdir"
 # Download and extract minimal Alpine system
 #############################################
 
-wget "http://dl-cdn.alpinelinux.org/alpine/v3.17/releases/${ALPINE_ARCH}/alpine-minirootfs-3.17.2-${ALPINE_ARCH}.tar.gz"
+ALPINE_RELEASE="3.21.0"
+wget "http://dl-cdn.alpinelinux.org/alpine/v${ALPINE_RELEASE%.*}/releases/${ALPINE_ARCH}/alpine-minirootfs-${ALPINE_RELEASE}-${ALPINE_ARCH}.tar.gz"
+wget "http://dl-cdn.alpinelinux.org/alpine/v${ALPINE_RELEASE%.*}/releases/${ALPINE_ARCH}/alpine-minirootfs-${ALPINE_RELEASE}-${ALPINE_ARCH}.tar.gz.sha256"
+sha256sum -c alpine-minirootfs-${ALPINE_RELEASE}-${ALPINE_ARCH}.tar.gz.sha256
+
 mkdir -p ./miniroot
 cd ./miniroot
 sudo tar xf ../alpine-minirootfs-*-"${ALPINE_ARCH}".tar.gz
