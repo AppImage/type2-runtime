@@ -16,11 +16,17 @@ trap cleanup EXIT
 # needed to determine the path of the patches
 this_dir="$(readlink -f "$(dirname "${BASH_SOURCE[0]}")")"
 
+FUSE_RELEASE="3.16.2"
+cp ${this_dir}/fuse-${FUSE_RELEASE%.*}.pub ${tmpdir}
+
 cd "$tmpdir"
 
-wget https://github.com/libfuse/libfuse/releases/download/fuse-3.15.0/fuse-3.15.0.tar.xz
-echo "70589cfd5e1cff7ccd6ac91c86c01be340b227285c5e200baa284e401eea2ca0  fuse-3.15.0.tar.xz" | sha256sum -c -
-tar xf fuse-3.*.tar.xz
+wget https://github.com/libfuse/libfuse/releases/download/fuse-${FUSE_RELEASE}/fuse-${FUSE_RELEASE}.tar.gz
+wget https://github.com/libfuse/libfuse/releases/download/fuse-${FUSE_RELEASE}/fuse-${FUSE_RELEASE}.tar.gz.sig
+#echo "70589cfd5e1cff7ccd6ac91c86c01be340b227285c5e200baa284e401eea2ca0  fuse-3.15.0.tar.xz" | sha256sum -c -
+signify -V -m fuse-${FUSE_RELEASE}.tar.gz -p fuse-${FUSE_RELEASE%.*}.pub
+
+tar xf fuse-3.*.tar.gz
 pushd fuse-3*/
 patch -p1 < "$this_dir"/../../patches/libfuse/mount.c.diff
 mkdir build
