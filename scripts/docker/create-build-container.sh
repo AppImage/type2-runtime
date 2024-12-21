@@ -18,7 +18,7 @@ case "${ARCH}" in
         docker_platform=linux/i386
         ;;
     armhf)
-        docker_platform=linux/arm/v7
+        docker_platform=linux/arm/v6
         ;;
     aarch64)
         docker_platform=linux/arm64/v8
