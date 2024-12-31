@@ -321,6 +321,11 @@ bool appimage_get_elf_section_offset_and_length(const char* fname, const char* s
 	data = mmap(NULL, map_size, PROT_READ, MAP_SHARED, fd, 0);
 	close(fd);
 
+	if (data == MAP_FAILED) {
+		fprintf(stderr, "Failed to mmap file %s: %s\n", fname, strerror(errno));
+		return false;
+	}
+
 	// this trick works as both 32 and 64 bit ELF files start with the e_ident[EI_NINDENT] section
 	unsigned char class = data[EI_CLASS];
 
