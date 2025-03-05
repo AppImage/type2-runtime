@@ -12,7 +12,7 @@ find /scripts
 apk update
 apk add alpine-sdk util-linux strace file autoconf automake libtool xz bash \
     eudev-dev gettext-dev linux-headers meson \
-    zstd-dev zstd-static zlib-dev zlib-static clang
+    zstd-dev zstd-static zlib-dev zlib-static clang mimalloc-dev
 
 /scripts/common/install-dependencies.sh
 /scripts/build-runtime.sh
