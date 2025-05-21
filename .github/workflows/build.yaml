@@ -72,17 +72,20 @@ jobs:
         path: out/*
 
   build-in-chroot:
-    runs-on: ubuntu-latest
-    # if: false
-
     strategy:
       fail-fast: false
       matrix:
         include:
-        - alpine_arch: x86_64
         - alpine_arch: x86
+          runner: ubuntu-24.04
+        - alpine_arch: x86_64
+          runner: ubuntu-24.04
         - alpine_arch: armhf
+          runner: ubuntu-24.04-arm
         - alpine_arch: aarch64
+          runner: ubuntu-24.04-arm
+
+    runs-on: ${{ matrix.runner }}
 
     steps:
     - name: Checkout
@@ -97,8 +100,6 @@ jobs:
       env:
         ALPINE_ARCH: ${{ matrix.alpine_arch }}
       run: |
-        sudo apt-get update
-        sudo apt-get -y install qemu-user-static
         scripts/chroot/chroot_build.sh
 
   upload:
