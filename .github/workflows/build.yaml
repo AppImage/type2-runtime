@@ -22,16 +22,20 @@ defaults:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-
     strategy:
       fail-fast: false
       matrix:
         include:
         - appimage_arch: i686
+          runner: ubuntu-24.04
         - appimage_arch: x86_64
+          runner: ubuntu-24.04
         - appimage_arch: armhf
+          runner: ubuntu-24.04-arm
         - appimage_arch: aarch64
+          runner: ubuntu-24.04-arm
+
+    runs-on: ${{ matrix.runner }}
 
     steps:
     - name: Checkout
@@ -41,9 +45,6 @@ jobs:
       run: |
            echo -n "https://github.com/${GITHUB_REPOSITORY}/commit/" > src/runtime/version
            git rev-parse --short HEAD  | xargs >> src/runtime/version
-
-    - name: Set up QEMU integration for Docker
-      run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
 
     - name: Build
       env:
