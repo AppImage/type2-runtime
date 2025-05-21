@@ -696,7 +696,7 @@ void print_help(const char* appimage_path) {
             "License:\n"
             "  This executable contains code from\n"
             "  * runtime, licensed under the terms of\n"
-            "    https://github.com/probonopd/static-tools/blob/master/LICENSE\n"
+            "    https://github.com/AppImage/type2-runtime/blob/main/LICENSE\n"
             "  * musl libc, licensed under the terms of\n"
             "    https://git.musl-libc.org/cgit/musl/tree/COPYRIGHT\n"
             "  * libfuse, licensed under the terms of\n"
@@ -707,7 +707,7 @@ void print_help(const char* appimage_path) {
             "    https://github.com/facebook/zstd/blob/dev/LICENSE\n"
             "  * zlib, licensed under the terms of\n"
             "    https://zlib.net/zlib_license.html\n"
-            "Please see https://github.com/probonopd/static-tools/\n"
+            "Please see https://github.com/AppImage/type2-runtime\n"
             "for information on how to obtain and build the source code\n", appimage_path);
 }
 
