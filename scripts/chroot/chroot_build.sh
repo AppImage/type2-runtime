@@ -2,6 +2,8 @@
 
 set -ex
 
+ALPINE_RELEASE="3.21.0"
+
 if [ -z "${ALPINE_ARCH}" ]; then
     echo "Usage: env ALPINE_ARCH=<arch> $0"
     echo "Example values: x86_64 x86 armhf aarch64"
@@ -35,10 +37,13 @@ cd "$tempdir"
 # Download and extract minimal Alpine system
 #############################################
 
-ALPINE_RELEASE="3.21.0"
-wget "http://dl-cdn.alpinelinux.org/alpine/v${ALPINE_RELEASE%.*}/releases/${ALPINE_ARCH}/alpine-minirootfs-${ALPINE_RELEASE}-${ALPINE_ARCH}.tar.gz"
-wget "http://dl-cdn.alpinelinux.org/alpine/v${ALPINE_RELEASE%.*}/releases/${ALPINE_ARCH}/alpine-minirootfs-${ALPINE_RELEASE}-${ALPINE_ARCH}.tar.gz.sha256"
-sha256sum -c alpine-minirootfs-${ALPINE_RELEASE}-${ALPINE_ARCH}.tar.gz.sha256
+mkdir "${tempdir}/.gpg"
+chmod 700 "${tempdir}/.gpg"
+gpg2 --homedir "${tempdir}/.gpg" --verbose --import "${repo_root_dir}/scripts/chroot/ncopa.asc"
+
+wget "https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_RELEASE%.*}/releases/${ALPINE_ARCH}/alpine-minirootfs-${ALPINE_RELEASE}-${ALPINE_ARCH}.tar.gz"
+wget "https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_RELEASE%.*}/releases/${ALPINE_ARCH}/alpine-minirootfs-${ALPINE_RELEASE}-${ALPINE_ARCH}.tar.gz.asc"
+gpg2 --homedir "${tempdir}/.gpg" --verify "alpine-minirootfs-${ALPINE_RELEASE}-${ALPINE_ARCH}.tar.gz.asc"
 
 mkdir -p ./miniroot
 cd ./miniroot
