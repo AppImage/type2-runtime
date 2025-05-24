@@ -64,6 +64,16 @@ extern int sqfs_opt_proc(void* data, const char* arg, int key, struct fuse_args*
 #include <libgen.h>
 #include <dirent.h>
 #include <ctype.h>
+#include <sys/syscall.h>
+
+#if defined(SYS_capget) && defined(SYS_capset)
+#define USE_CAPABILITIES
+#endif
+
+#ifdef USE_CAPABILITIES
+#include <sys/prctl.h>
+#include <linux/capability.h>
+#endif
 
 const char* fusermountPath = NULL;
 
@@ -1459,6 +1469,97 @@ void set_portable_home_and_config(char* basepath) {
     }
 }
 
+#ifdef USE_CAPABILITIES
+int appimage_adjust_capabilities()
+{
+    struct __user_cap_header_struct hdr;
+    struct __user_cap_data_struct data[_LINUX_CAPABILITY_U32S_3];
+    int res, datacnt;
+
+    hdr.version = 0;
+    hdr.pid = 0;
+    res = syscall(SYS_capget, &hdr, NULL);
+    if (res)
+    {
+        if (errno != EINVAL || hdr.version == 0)
+        {
+            fprintf(stderr, "SYS_capget syscall failed with %d\n", errno);
+            return -1;
+        }
+    }
+    else if (hdr.version == 0)
+    {
+        fprintf(stderr, "Failed to query capability version\n");
+        return -1;
+    }
+
+    //fprintf(stderr, "Linux capability version: %x\n", hdr.version);
+
+    switch (hdr.version)
+    {
+        case _LINUX_CAPABILITY_VERSION_1:
+            datacnt = _LINUX_CAPABILITY_U32S_1;
+            break;
+        case _LINUX_CAPABILITY_VERSION_2:
+            datacnt = _LINUX_CAPABILITY_U32S_2;
+            break;
+        case _LINUX_CAPABILITY_VERSION_3:
+            datacnt = _LINUX_CAPABILITY_U32S_3;
+            break;
+        default:
+            fprintf(stderr, "Unknown Linux capability version: %x; forcing version 3\n", hdr.version);
+            datacnt = _LINUX_CAPABILITY_U32S_3;
+            hdr.version = _LINUX_CAPABILITY_VERSION_3;
+    }
+
+    res = syscall(SYS_capget, &hdr, &data);
+    if (res)
+    {
+        fprintf(stderr, "Failed to query capabilities; error: %d\n", errno);
+        return -1;
+    }
+
+    //for (int i = 0; i < datacnt; ++i)
+    //{
+    //    fprintf(stderr, "Set %d: eff = %08x, perm = %08x, inh = %08x\n", i, data[i].effective, data[i].permitted, data[i].inheritable);
+    //}
+
+    for (int i = 0; i < datacnt; ++i)
+    {
+        data[i].inheritable |= data[i].permitted;
+    }
+
+    res = syscall(SYS_capset, &hdr, &data);
+    if (res)
+    {
+        fprintf(stderr, "Failed to set capabilities; error: %d\n", errno);
+        return -1;
+    }
+
+    /* now we can set up the ambient set */
+    for (int i = 0; i < datacnt; ++i)
+    {
+        for (int j = 0; j < 32; ++j)
+        {
+            int capval = i * 32 + j;
+            int capbit = 1 << j;
+
+            if ((data[i].permitted & capbit) && (data[i].inheritable & capbit))
+            {
+                res = prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_RAISE, capval, 0, 0);
+                if (res)
+                {
+                    fprintf(stderr, "Failed to set ambient capability %d; error: %d\n", capval, errno);
+                    return -1;
+                }
+            }
+        }
+    }
+
+    return 0;
+}
+#endif
+
 int main(int argc, char* argv[]) {
     const bool verbose = (getenv("VERBOSE") != NULL);
     if (verbose) {
@@ -1831,6 +1932,15 @@ int main(int argc, char* argv[]) {
         setenv("APPDIR", mount_dir, 1);
 
         set_portable_home_and_config(fullpath);
+
+#ifdef USE_CAPABILITIES
+        /* Ensure that capabilities for the AppImage are applied to the children (Note: we won't consider
+           this failing as an error as the application might still work for the usecase intended by the user) */
+        if (appimage_adjust_capabilities())
+        {
+            fprintf(stderr, "Warning: failed to forward capabilities\n");
+        }
+#endif
 
         /* Original working directory */
         char cwd[1024];
