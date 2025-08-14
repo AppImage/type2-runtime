@@ -716,20 +716,12 @@ void print_help(const char* appimage_path) {
             "for information on how to obtain and build the source code\n", appimage_path);
 }
 
-void portable_option(const char* arg, const char* appimage_path, const char* name) {
+void portable_option(const char* arg, const char* fullpath, const char* name) {
     char option[32];
     sprintf(option, "appimage-portable-%s", name);
 
     if (arg && strcmp(arg, option) == 0) {
         char portable_dir[PATH_MAX];
-        char fullpath[PATH_MAX];
-
-        ssize_t length = readlink(appimage_path, fullpath, sizeof(fullpath));
-        if (length < 0) {
-            fprintf(stderr, "Error getting realpath for %s\n", appimage_path);
-            exit(EXIT_FAILURE);
-        }
-        fullpath[length] = '\0';
 
         sprintf(portable_dir, "%s.%s", fullpath, name);
         if (!mkdir(portable_dir, S_IRWXU))
@@ -1488,6 +1480,35 @@ int main(int argc, char* argv[]) {
         strcpy(argv0_path, getenv("TARGET_APPIMAGE"));
     }
 
+    // figure out file type
+    struct stat stat_buf;
+
+    if (lstat(appimage_path, &stat_buf) < 0) {
+        fprintf(stderr, "Error, cannot stat %s\n", appimage_path);
+        exit(EXIT_EXECERROR);
+    }
+
+    // calculate full path of AppImage
+    char fullpath[PATH_MAX];
+
+    if (S_ISLNK(stat_buf.st_mode)) {
+        // If we are operating on a link
+        ssize_t len = readlink(appimage_path, fullpath, sizeof(fullpath));
+        if (len < 0) {
+            fprintf(stderr, "Error getting realpath for %s\n", appimage_path);
+            exit(EXIT_EXECERROR);
+        }
+        fullpath[len] = '\0';
+    } else {
+        char* abspath = realpath(appimage_path, NULL);
+        if (abspath == NULL) {
+            fprintf(stderr, "Error getting realpath for %s\n", appimage_path);
+            exit(EXIT_EXECERROR);
+        }
+        strcpy(fullpath, abspath);
+        free(abspath);
+    }
+
     // temporary directories are required in a few places
     // therefore we implement the detection of the temp base dir at the top of the code to avoid redundancy
     char temp_base[PATH_MAX] = P_tmpdir;
@@ -1510,15 +1531,6 @@ int main(int argc, char* argv[]) {
 
     /* Print the help and then exit */
     if (arg && strcmp(arg, "appimage-help") == 0) {
-        char fullpath[PATH_MAX];
-
-        ssize_t length = readlink(appimage_path, fullpath, sizeof(fullpath));
-        if (length < 0) {
-            fprintf(stderr, "Error getting realpath for %s\n", appimage_path);
-            exit(EXIT_EXECERROR);
-        }
-        fullpath[length] = '\0';
-
         print_help(fullpath);
         exit(0);
     }
@@ -1555,27 +1567,6 @@ int main(int argc, char* argv[]) {
         }
 
         exit(0);
-    }
-
-    // calculate full path of AppImage
-    char fullpath[PATH_MAX];
-
-    if (getenv("TARGET_APPIMAGE") == NULL) {
-        // If we are operating on this file itself
-        ssize_t len = readlink(appimage_path, fullpath, sizeof(fullpath));
-        if (len < 0) {
-            perror("Failed to obtain absolute path");
-            exit(EXIT_EXECERROR);
-        }
-        fullpath[len] = '\0';
-    } else {
-        char* abspath = realpath(appimage_path, NULL);
-        if (abspath == NULL) {
-            perror("Failed to obtain absolute path");
-            exit(EXIT_EXECERROR);
-        }
-        strcpy(fullpath, abspath);
-        free(abspath);
     }
 
     if (getenv("APPIMAGE_EXTRACT_AND_RUN") != NULL || (arg && strcmp(arg, "appimage-extract-and-run") == 0)) {
@@ -1695,8 +1686,8 @@ int main(int argc, char* argv[]) {
         exit(0);
     }
 
-    portable_option(arg, appimage_path, "home");
-    portable_option(arg, appimage_path, "config");
+    portable_option(arg, fullpath, "home");
+    portable_option(arg, fullpath, "config");
 
     // If there is an argument starting with appimage- (but not appimage-mount which is handled further down)
     // then stop here and print an error message
