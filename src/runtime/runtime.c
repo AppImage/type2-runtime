@@ -583,35 +583,7 @@ sqfs_err private_sqfs_stat(sqfs* fs, sqfs_inode* inode, struct stat* st) {
 
 /* ================= End ELF parsing */
 
-extern int fusefs_main(int argc, char* argv[], void (* mounted)(void));
-// extern void ext2_quit(void);
-
-static pid_t fuse_pid;
-static int keepalive_pipe[2];
-
-static void*
-write_pipe_thread(void* arg) {
-    char c[32];
-    int res;
-    //  sprintf(stderr, "Called write_pipe_thread");
-    memset(c, 'x', sizeof(c));
-    while (1) {
-        /* Write until we block, on broken pipe, exit */
-        res = write(keepalive_pipe[1], c, sizeof(c));
-        if (res == -1) {
-            kill(fuse_pid, SIGTERM);
-            break;
-        }
-    }
-    return NULL;
-}
-
-void
-fuse_mounted(void) {
-    pthread_t thread;
-    fuse_pid = getpid();
-    pthread_create(&thread, NULL, write_pipe_thread, keepalive_pipe);
-}
+extern int fusefs_main(int argc, char* argv[]);
 
 char* getArg(int argc, char* argv[], char chr) {
     int i;
@@ -997,7 +969,111 @@ void build_mount_point(char* mount_dir, const char* const argv0, const char* con
     snprintf(mount_dir, templen + prefix_len + namelen + suffix_len + 1, "%s/.mount_%.*sXXXXXX", temp_base, (int)namelen, path_basename);
 }
 
-int fusefs_main(int argc, char* argv[], void (* mounted)(void)) {
+typedef struct {
+    int argc;
+    char **argv;
+    char *arg;
+    char *fullpath;
+    char *argv0_path;
+    char *mountdir;
+} fusefs_init_ctx_t;
+static fusefs_init_ctx_t fusefs_init_ctx;
+
+void set_portable_home_and_config(char* basepath);
+
+/* We use this override to make the payload process a child of the fuse daemon */
+void fusefs_ll_op_init_override(void *userdata, struct fuse_conn_info *conn) {
+    pid_t pid = fork();
+    if (pid == -1) {
+        perror("fork error");
+        exit(EXIT_EXECERROR);
+    }
+
+    if (pid != 0) {
+        sqfs_ll_op_init(userdata, conn);
+        return;
+    }
+
+    /* in parent, child is $pid */
+    // int c;
+    int i, dir_fd, res;
+    char** real_argv;
+
+    /* read from context (passed from main process) */
+    int argc = fusefs_init_ctx.argc;
+    char **argv = fusefs_init_ctx.argv;
+    char *arg = fusefs_init_ctx.arg;
+    char *fullpath = fusefs_init_ctx.fullpath;
+    char *argv0_path = fusefs_init_ctx.argv0_path;
+    char *mount_dir = fusefs_init_ctx.mountdir;
+
+    /* Fuse process has now daemonized, reap our child */
+    waitpid(pid, NULL, 0);
+
+    dir_fd = open(mount_dir, O_RDONLY);
+    if (dir_fd == -1) {
+        perror("open dir error");
+        exit(EXIT_EXECERROR);
+    }
+
+    res = dup2(dir_fd, 1023);
+    if (res == -1) {
+        perror("dup2 error");
+        exit(EXIT_EXECERROR);
+    }
+    close(dir_fd);
+
+    real_argv = malloc(sizeof(char*) * (argc + 1));
+    for (i = 0; i < argc; i++) {
+        real_argv[i] = argv[i];
+    }
+    real_argv[i] = NULL;
+
+    if (arg && strcmp(arg, "appimage-mount") == 0) {
+        char real_mount_dir[PATH_MAX];
+
+        if (realpath(mount_dir, real_mount_dir) == real_mount_dir) {
+            printf("%s\n", real_mount_dir);
+        } else {
+            printf("%s\n", mount_dir);
+        }
+
+        // stdout is, by default, buffered (unlike stderr), therefore in order to allow other processes to read
+        // the path from stdout, we need to flush the buffers now
+        // this is a less-invasive alternative to setbuf(stdout, NULL);
+        fflush(stdout);
+
+        for (;;) pause();
+
+        exit(0);
+    }
+
+    /* Setting some environment variables that the app "inside" might use */
+    setenv("APPIMAGE", fullpath, 1);
+    setenv("ARGV0", argv0_path, 1);
+    setenv("APPDIR", mount_dir, 1);
+
+    set_portable_home_and_config(fullpath);
+
+    /* Original working directory */
+    char cwd[1024];
+    if (getcwd(cwd, sizeof(cwd)) != NULL) {
+        setenv("OWD", cwd, 1);
+    }
+
+    size_t mount_dir_size = strlen(mount_dir);
+    char filename[mount_dir_size + 8]; /* enough for mount_dir + "/AppRun" */
+    strcpy(filename, mount_dir);
+    strcat(filename, "/AppRun");
+
+    /* TODO: Find a way to get the exit status and/or output of this */
+    execv(filename, real_argv);
+    /* Error if we continue here */
+    perror("execv error");
+    exit(EXIT_EXECERROR);
+}
+
+int fusefs_main(int argc, char* argv[]) {
     struct fuse_args args;
     sqfs_opts opts;
 
@@ -1023,6 +1099,7 @@ int fusefs_main(int argc, char* argv[], void (* mounted)(void)) {
 
     struct fuse_lowlevel_ops sqfs_ll_ops;
     memset(&sqfs_ll_ops, 0, sizeof(sqfs_ll_ops));
+    sqfs_ll_ops.init = fusefs_ll_op_init_override;
     sqfs_ll_ops.getattr = sqfs_ll_op_getattr;
     sqfs_ll_ops.opendir = sqfs_ll_op_opendir;
     sqfs_ll_ops.releasedir = sqfs_ll_op_releasedir;
@@ -1063,29 +1140,6 @@ int fusefs_main(int argc, char* argv[], void (* mounted)(void)) {
     if (fuse_cmdline_opts.mountpoint == NULL)
         sqfs_usage(argv[0], true, true);
 
-    /* fuse_daemonize() will unconditionally clobber fds 0-2.
-     *
-     * If we get one of these file descriptors in sqfs_ll_open,
-     * we're going to have a bad time. Just make sure that all
-     * these fds are open before opening the image file, that way
-     * we must get a different fd.
-     */
-    while (true) {
-        int fd = open("/dev/null", O_RDONLY);
-        if (fd == -1) {
-            /* Can't open /dev/null, how bizarre! However,
-             * fuse_deamonize won't clobber fds if it can't
-             * open /dev/null either, so we ought to be OK.
-             */
-            break;
-        }
-        if (fd > 2) {
-            /* fds 0-2 are now guaranteed to be open. */
-            close(fd);
-            break;
-        }
-    }
-
     /* OPEN FS */
     err = !(ll = sqfs_ll_open(opts.image, opts.offset));
 
@@ -1100,26 +1154,20 @@ int fusefs_main(int argc, char* argv[], void (* mounted)(void)) {
                 &sqfs_ll_ops,
                 sizeof(sqfs_ll_ops),
                 ll) == SQFS_OK) {
-            if (sqfs_ll_daemonize(fuse_cmdline_opts.foreground) != -1) {
-                if (fuse_set_signal_handlers(ch.session) != -1) {
-                    if (opts.idle_timeout_secs) {
-                        setup_idle_timeout(ch.session, opts.idle_timeout_secs);
-                    }
-                    if (mounted)
-                        mounted();
-                    /* FIXME: multithreading */
-                    err = fuse_session_loop(ch.session);
-                    teardown_idle_timeout();
-                    fuse_remove_signal_handlers(ch.session);
+            if (fuse_set_signal_handlers(ch.session) != -1) {
+                if (opts.idle_timeout_secs) {
+                    setup_idle_timeout(ch.session, opts.idle_timeout_secs);
                 }
+                /* FIXME: multithreading */
+                err = fuse_session_loop(ch.session);
+                teardown_idle_timeout();
+                fuse_remove_signal_handlers(ch.session);
             }
             sqfs_ll_destroy(ll);
             sqfs_ll_unmount(&ch, fuse_cmdline_opts.mountpoint);
         }
     }
     fuse_opt_free_args(&args);
-    if (mounted)
-        rmdir(fuse_cmdline_opts.mountpoint);
     free(ll);
     free(fuse_cmdline_opts.mountpoint);
 
@@ -1705,8 +1753,6 @@ int main(int argc, char* argv[]) {
         exit(1);
     }
 
-    int dir_fd, res;
-
     size_t templen = strlen(temp_base);
 
     // allocate enough memory (size of name won't exceed 60 bytes)
@@ -1714,145 +1760,58 @@ int main(int argc, char* argv[]) {
 
     build_mount_point(mount_dir, argv[0], temp_base, templen);
 
-    size_t mount_dir_size = strlen(mount_dir);
-    pid_t pid;
-    char** real_argv;
-    int i;
-
     if (mkdtemp(mount_dir) == NULL) {
         perror("create mount dir error");
         exit(EXIT_EXECERROR);
     }
 
-    if (pipe(keepalive_pipe) == -1) {
-        perror("pipe error");
-        exit(EXIT_EXECERROR);
-    }
-
-    pid = fork();
-    if (pid == -1) {
-        perror("fork error");
-        exit(EXIT_EXECERROR);
-    }
-
-    if (pid == 0) {
-        /* in child */
-
-        fusermountPath = getenv("FUSERMOUNT_PROG");
-        if (fusermountPath == NULL) {
-            char* new_prog = find_fusermount(verbose);
-            if (new_prog != NULL) {
-                setenv("FUSERMOUNT_PROG", new_prog, 1);
-                if (verbose) {
-                    fprintf(stderr, "FUSERMOUNT_PROG set to %s\n", new_prog);
-                }
-                free(new_prog);
-            } else {
-                printf("Error: No suitable fusermount binary found on the $PATH\n");
+    fusermountPath = getenv("FUSERMOUNT_PROG");
+    if (fusermountPath == NULL) {
+        char* new_prog = find_fusermount(verbose);
+        if (new_prog != NULL) {
+            setenv("FUSERMOUNT_PROG", new_prog, 1);
+            if (verbose) {
+                fprintf(stderr, "FUSERMOUNT_PROG set to %s\n", new_prog);
             }
+            free(new_prog);
+        } else {
+            printf("Error: No suitable fusermount binary found on the $PATH\n");
         }
-
-        char* child_argv[5];
-
-        /* close read pipe */
-        close(keepalive_pipe[0]);
-
-        char* dir = realpath(appimage_path, NULL);
-
-        char options[100];
-        sprintf(options, "ro,offset=%zu", fs_offset);
-
-        child_argv[0] = dir;
-        child_argv[1] = "-o";
-        child_argv[2] = options;
-        child_argv[3] = dir;
-        child_argv[4] = mount_dir;
-
-        if (0 != fusefs_main(5, child_argv, fuse_mounted)) {
-            char* title;
-            char* body;
-            title = "Cannot mount AppImage, please check your FUSE setup.";
-            body = "You might still be able to extract the contents of this AppImage \n"
-                   "if you run it with the --appimage-extract option. \n"
-                   "See https://github.com/AppImage/AppImageKit/wiki/FUSE \n"
-                   "for more information";
-            printf("\n%s\n", title);
-            printf("%s\n", body);
-        };
-    } else {
-        /* in parent, child is $pid */
-        int c;
-
-        /* close write pipe */
-        close(keepalive_pipe[1]);
-
-        /* Pause until mounted */
-        read(keepalive_pipe[0], &c, 1);
-
-        /* Fuse process has now daemonized, reap our child */
-        waitpid(pid, NULL, 0);
-
-        dir_fd = open(mount_dir, O_RDONLY);
-        if (dir_fd == -1) {
-            perror("open dir error");
-            exit(EXIT_EXECERROR);
-        }
-
-        res = dup2(dir_fd, 1023);
-        if (res == -1) {
-            perror("dup2 error");
-            exit(EXIT_EXECERROR);
-        }
-        close(dir_fd);
-
-        real_argv = malloc(sizeof(char*) * (argc + 1));
-        for (i = 0; i < argc; i++) {
-            real_argv[i] = argv[i];
-        }
-        real_argv[i] = NULL;
-
-        if (arg && strcmp(arg, "appimage-mount") == 0) {
-            char real_mount_dir[PATH_MAX];
-
-            if (realpath(mount_dir, real_mount_dir) == real_mount_dir) {
-                printf("%s\n", real_mount_dir);
-            } else {
-                printf("%s\n", mount_dir);
-            }
-
-            // stdout is, by default, buffered (unlike stderr), therefore in order to allow other processes to read
-            // the path from stdout, we need to flush the buffers now
-            // this is a less-invasive alternative to setbuf(stdout, NULL);
-            fflush(stdout);
-
-            for (;;) pause();
-
-            exit(0);
-        }
-
-        /* Setting some environment variables that the app "inside" might use */
-        setenv("APPIMAGE", fullpath, 1);
-        setenv("ARGV0", argv0_path, 1);
-        setenv("APPDIR", mount_dir, 1);
-
-        set_portable_home_and_config(fullpath);
-
-        /* Original working directory */
-        char cwd[1024];
-        if (getcwd(cwd, sizeof(cwd)) != NULL) {
-            setenv("OWD", cwd, 1);
-        }
-
-        char filename[mount_dir_size + 8]; /* enough for mount_dir + "/AppRun" */
-        strcpy(filename, mount_dir);
-        strcat(filename, "/AppRun");
-
-        /* TODO: Find a way to get the exit status and/or output of this */
-        execv(filename, real_argv);
-        /* Error if we continue here */
-        perror("execv error");
-        exit(EXIT_EXECERROR);
     }
+
+    char* child_argv[6];
+    char* dir = realpath(appimage_path, NULL);
+
+    char options[100];
+    sprintf(options, "ro,offset=%zu", fs_offset);
+
+    child_argv[0] = dir;
+    child_argv[1] = "-f";
+    child_argv[2] = "-o";
+    child_argv[3] = options;
+    child_argv[4] = dir;
+    child_argv[5] = mount_dir;
+
+    /* Pass necessary data to user's process */
+    memset(&fusefs_init_ctx, 0, sizeof(fusefs_init_ctx_t));
+    fusefs_init_ctx.argc = argc;
+    fusefs_init_ctx.argv = argv;
+    fusefs_init_ctx.arg = arg;
+    fusefs_init_ctx.fullpath = fullpath;
+    fusefs_init_ctx.argv0_path = argv0_path;
+    fusefs_init_ctx.mountdir = mount_dir;
+
+    if (0 != fusefs_main(6, child_argv)) {
+        char* title;
+        char* body;
+        title = "Cannot mount AppImage, please check your FUSE setup.";
+        body = "You might still be able to extract the contents of this AppImage \n"
+               "if you run it with the --appimage-extract option. \n"
+               "See https://github.com/AppImage/AppImageKit/wiki/FUSE \n"
+               "for more information";
+        printf("\n%s\n", title);
+        printf("%s\n", body);
+    };
 
     return 0;
 }
