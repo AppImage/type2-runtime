@@ -976,6 +976,7 @@ typedef struct {
     char *fullpath;
     char *argv0_path;
     char *mountdir;
+    pid_t childpid;
 } fusefs_init_ctx_t;
 static fusefs_init_ctx_t fusefs_init_ctx;
 
@@ -991,6 +992,7 @@ void fusefs_ll_op_init_override(void *userdata, struct fuse_conn_info *conn) {
 
     if (pid != 0) {
         sqfs_ll_op_init(userdata, conn);
+        fusefs_init_ctx.childpid = pid;
         return;
     }
 
@@ -1801,7 +1803,8 @@ int main(int argc, char* argv[]) {
     fusefs_init_ctx.argv0_path = argv0_path;
     fusefs_init_ctx.mountdir = mount_dir;
 
-    if (0 != fusefs_main(6, child_argv)) {
+    int rc = fusefs_main(6, child_argv);
+    if (0 != rc && -SIGINT != rc && -SIGTERM != rc) {
         char* title;
         char* body;
         title = "Cannot mount AppImage, please check your FUSE setup.";
@@ -1813,5 +1816,10 @@ int main(int argc, char* argv[]) {
         printf("%s\n", body);
     };
 
-    return 0;
+    // wait for childpid and return its error code
+    int status = 0;
+    int rv = waitpid(fusefs_init_ctx.childpid, &status, 0);
+    status = (rv > 0 && WIFEXITED (status)) ? WEXITSTATUS (status) :
+             (rv > 0 && WIFSIGNALED(status)) ? -WTERMSIG(status) : EXIT_EXECERROR;
+    return status;
 }
