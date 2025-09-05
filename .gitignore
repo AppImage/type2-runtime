@@ -67,3 +67,5 @@ squashfs-root/
 
 # build products
 src/runtime/runtime
+bazel-*
+external/

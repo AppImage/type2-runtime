@@ -1,0 +1,27 @@
+module(name = "type2-runtime")
+
+bazel_dep(name = "libfuse", version = "3.16.2")
+# bazel_dep(name = "mimalloc", version = "2.2.4")
+bazel_dep(name = "platforms", version = "1.0.0")
+bazel_dep(name = "rules_cc", version = "0.2.3")
+bazel_dep(name = "squashfuse", version = "0.5.2")
+bazel_dep(name = "toolchains_llvm_bootstrapped")
+bazel_dep(name = "zlib", version = "1.3.1.bcr.6")
+bazel_dep(name = "zstd", version = "1.5.7")
+
+single_version_override(
+    module_name = "squashfuse",
+    patch_strip = 1,
+    patches = ["//:squashfuse.diff"],
+)
+
+git_override(
+    module_name = "toolchains_llvm_bootstrapped",
+    commit = "a40866a4900af4fac948370b2c66ed68ffd88521",
+    remote = "https://github.com/cerisier/toolchains_llvm_bootstrapped",
+)
+
+register_toolchains("@toolchains_llvm_bootstrapped//toolchain:all")
+
+# kernel_headers = use_extension("@toolchains_llvm_bootstrapped//kernel/extension:kernel_headers.bzl", "kernel_headers")
+# use_repo(kernel_headers, "kernel_headers")

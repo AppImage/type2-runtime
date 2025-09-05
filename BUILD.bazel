@@ -1,0 +1,39 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_binary(
+    name = "runtime",
+    srcs = ["src/runtime/runtime.c"],
+    local_defines = [
+        "FUSE_USE_VERSION=316",
+        "GIT_COMMIT=\\\"" + module_version() + "\\\"",
+    ],
+    # additional_linker_inputs = [
+    #     "src/runtime/data_sections.ld",
+    # ],
+    # copts = [
+    #     "-std=gnu99",
+    #     "-Os",
+    #     "-D_FILE_OFFSET_BITS=64",
+    #     "-DGIT_COMMIT=\\\"bazel-build\\\"",
+    #     "-ffunction-sections",
+    #     "-fdata-sections",
+    #     "-Wall",
+    #     "-Werror",
+    #     "-I$(GENDIR)",  # For generated headers
+    # ],
+    # linkopts = [
+    #     "-T$(location src/runtime/data_sections.ld)",
+    #     "-Wl,--gc-sections",
+    #     "-static",
+    #     "-static-pie",
+    # ],
+    deps = [
+        "@libfuse",
+        # "@mimalloc",
+        "@squashfuse",
+        "@zlib",
+        "@zstd",
+    ],
+)

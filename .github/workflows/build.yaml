@@ -14,108 +14,19 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# The default Debian shell (dash) is faster than bash at running scripts,
-# and using bash when it is not needed doesn't make sense.
-defaults:
-  run:
-    shell: sh
-
 jobs:
   build:
     strategy:
-      fail-fast: false
       matrix:
-        include:
-        - appimage_arch: i686
-          runner: ubuntu-24.04
-        - appimage_arch: x86_64
-          runner: ubuntu-24.04
-        - appimage_arch: armhf
-          runner: ubuntu-24.04-arm
-        - appimage_arch: aarch64
-          runner: ubuntu-24.04-arm
-
-    runs-on: ${{ matrix.runner }}
-
+        appimage_arch: [x86_64, aarch64]
+    runs-on: ubuntu-latest
     steps:
     - name: Checkout
       uses: actions/checkout@v5
-
-    - name: Get git hash
-      run: |
-           echo -n "https://github.com/${GITHUB_REPOSITORY}/commit/" > src/runtime/version
-           git rev-parse --short HEAD  | xargs >> src/runtime/version
-
-    - name: Build
-      env:
-        ARCH: ${{ matrix.appimage_arch }}
-      run: |
-          # make sure to collect artifacts in a separate directory
-          # makes uploading easier
-          mkdir -p out
-          (cd out && ../scripts/docker/build-with-docker.sh)
-
-    - name: Sign
-      env:
-        SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
-      # skip signing if secret is not available (e.g., if run from a PR made by somebody outside of this repository)
-      if: ${{ env.SIGNING_KEY != '' }}
-      run: |
-        find out
-        scripts/sign.sh out/runtime-*
-        # copy pubkey so that it's included with the files uploaded to the release page
-        cp signing-pubkey.asc out/
-
+    - run: >-
+        bazel build //:runtime
+        --platforms @toolchains_llvm_bootstrapped//platforms/libc_aware:linux_${{ matrix.appimage_arch }}_musl
     - uses: actions/upload-artifact@v4
       with:
-        name: artifacts ${{ matrix.appimage_arch }}
-        path: out/*
-
-  build-in-chroot:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-        - alpine_arch: x86
-          runner: ubuntu-24.04
-        - alpine_arch: x86_64
-          runner: ubuntu-24.04
-        - alpine_arch: armhf
-          runner: ubuntu-24.04-arm
-        - alpine_arch: aarch64
-          runner: ubuntu-24.04-arm
-
-    runs-on: ${{ matrix.runner }}
-
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v5
-
-    - name: Get git hash
-      run: |
-           echo -n "https://github.com/${GITHUB_REPOSITORY}/commit/" > src/runtime/version
-           git rev-parse --short HEAD  | xargs >> src/runtime/version
-
-    - name: Build in chroot
-      env:
-        ALPINE_ARCH: ${{ matrix.alpine_arch }}
-      run: |
-        scripts/chroot/chroot_build.sh
-
-  upload:
-    name: Create release and upload artifacts
-    runs-on: ubuntu-latest
-    needs:
-      - build
-    steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v5
-      - name: Inspect directory after downloading artifacts
-        run: ls -alFR
-      - name: Create release and upload artifacts
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-            wget -q https://github.com/TheAssassin/pyuploadtool/releases/download/continuous/pyuploadtool-x86_64.AppImage
-            chmod +x pyuploadtool-x86_64.AppImage
-            GITHUB_CONTINUOUS_RELEASE_TYPE=stable ./pyuploadtool-x86_64.AppImage --appimage-extract-and-run artifacts*/*
+        name: runtime_${{ matrix.appimage_arch }}
+        path: bazel-bin/runtime
