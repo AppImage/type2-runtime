@@ -72,6 +72,11 @@ extern int sqfs_opt_proc(void* data, const char* arg, int key, struct fuse_args*
 
 const char* fusermountPath = NULL;
 
+// Constants for namespace and capability management
+#define DEFAULT_LAST_CAP 39
+#define UINT32_FULL_RANGE 4294967295U
+#define UID_GID_MAP_BUFFER_SIZE 64
+
 typedef struct {
     uint32_t lo;
     uint32_t hi;
@@ -435,10 +440,10 @@ void restore_capabilities(bool verbose) {
     }
     
     FILE* f = fopen("/proc/sys/kernel/cap_last_cap", "r");
-    uint32_t last_cap = 39; // default fallback
+    uint32_t last_cap = DEFAULT_LAST_CAP; // default fallback
     if (f != NULL) {
         if (fscanf(f, "%u", &last_cap) != 1) {
-            last_cap = 39;
+            last_cap = DEFAULT_LAST_CAP;
         }
         fclose(f);
     }
@@ -486,8 +491,8 @@ bool is_in_user_and_mount_namespace(void) {
         // Parse the uid_map: "target_uid host_uid count"
         uint32_t target_uid, host_uid, count;
         if (sscanf(line, "%u %u %u", &target_uid, &host_uid, &count) == 3) {
-            // If count is less than full range (4294967295), we're in a user namespace
-            if (count < 4294967295) {
+            // If count is less than full range, we're in a user namespace
+            if (count < UINT32_FULL_RANGE) {
                 result = try_make_mount_private();
             }
         }
@@ -528,7 +533,7 @@ bool try_unshare(uid_t uid, gid_t gid, const char* unshare_uid, const char* unsh
         }
         
         // Write uid_map
-        char uid_map[64];
+        char uid_map[UID_GID_MAP_BUFFER_SIZE];
         snprintf(uid_map, sizeof(uid_map), "%u %u 1", target_uid, uid);
         f = fopen("/proc/self/uid_map", "w");
         if (f == NULL) {
@@ -543,7 +548,7 @@ bool try_unshare(uid_t uid, gid_t gid, const char* unshare_uid, const char* unsh
         fclose(f);
         
         // Write gid_map
-        char gid_map[64];
+        char gid_map[UID_GID_MAP_BUFFER_SIZE];
         snprintf(gid_map, sizeof(gid_map), "%u %u 1", target_gid, gid);
         f = fopen("/proc/self/gid_map", "w");
         if (f == NULL) {
