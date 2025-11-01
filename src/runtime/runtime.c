@@ -72,20 +72,6 @@ extern int sqfs_opt_proc(void* data, const char* arg, int key, struct fuse_args*
 
 const char* fusermountPath = NULL;
 
-// Capability structures for namespace support
-#define _LINUX_CAPABILITY_VERSION_3 0x20080522
-
-struct cap_header {
-    uint32_t version;
-    int pid;
-};
-
-struct cap_data {
-    uint32_t effective;
-    uint32_t permitted;
-    uint32_t inheritable;
-};
-
 typedef struct {
     uint32_t lo;
     uint32_t hi;
@@ -434,38 +420,47 @@ int appimage_print_binary(char* fname, unsigned long offset, unsigned long lengt
 }
 
 // Restore capabilities after entering user namespace
-void restore_capabilities(void) {
-    struct cap_header caps = {
+void restore_capabilities(bool verbose) {
+    struct __user_cap_header_struct caps = {
         .version = _LINUX_CAPABILITY_VERSION_3,
         .pid = 0
     };
-    struct cap_data cap_data[2] = {{0, 0, 0}, {0, 0, 0}};
+    struct __user_cap_data_struct cap_data[2] = {{0, 0, 0}, {0, 0, 0}};
     
-    if (syscall(SYS_capget, &caps, &cap_data) == 0) {
-        FILE* f = fopen("/proc/sys/kernel/cap_last_cap", "r");
-        uint32_t last_cap = 39; // default fallback
-        if (f != NULL) {
-            if (fscanf(f, "%u", &last_cap) != 1) {
-                last_cap = 39;
-            }
-            fclose(f);
+    if (syscall(SYS_capget, &caps, &cap_data) != 0) {
+        if (verbose) {
+            fprintf(stderr, "Warning: failed to get capabilities: %s\n", strerror(errno));
         }
-        
-        uint64_t all_caps = (1ULL << (last_cap + 1)) - 1;
-        cap_data[0].effective = (uint32_t)(all_caps & 0xFFFFFFFF);
-        cap_data[0].permitted = (uint32_t)(all_caps & 0xFFFFFFFF);
-        cap_data[0].inheritable = (uint32_t)(all_caps & 0xFFFFFFFF);
-        cap_data[1].effective = (uint32_t)((all_caps >> 32) & 0xFFFFFFFF);
-        cap_data[1].permitted = (uint32_t)((all_caps >> 32) & 0xFFFFFFFF);
-        cap_data[1].inheritable = (uint32_t)((all_caps >> 32) & 0xFFFFFFFF);
-        
-        syscall(SYS_capset, &caps, &cap_data);
-        
-        for (uint32_t cap = 0; cap <= last_cap; cap++) {
-            prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_RAISE, cap, 0, 0);
+        return;
+    }
+    
+    FILE* f = fopen("/proc/sys/kernel/cap_last_cap", "r");
+    uint32_t last_cap = 39; // default fallback
+    if (f != NULL) {
+        if (fscanf(f, "%u", &last_cap) != 1) {
+            last_cap = 39;
         }
-    } else {
-        fprintf(stderr, "Warning: failed to get capabilities: %s\n", strerror(errno));
+        fclose(f);
+    }
+    
+    uint64_t all_caps = (1ULL << (last_cap + 1)) - 1;
+    cap_data[0].effective = (uint32_t)(all_caps & 0xFFFFFFFF);
+    cap_data[0].permitted = (uint32_t)(all_caps & 0xFFFFFFFF);
+    cap_data[0].inheritable = (uint32_t)(all_caps & 0xFFFFFFFF);
+    cap_data[1].effective = (uint32_t)((all_caps >> 32) & 0xFFFFFFFF);
+    cap_data[1].permitted = (uint32_t)((all_caps >> 32) & 0xFFFFFFFF);
+    cap_data[1].inheritable = (uint32_t)((all_caps >> 32) & 0xFFFFFFFF);
+    
+    if (syscall(SYS_capset, &caps, &cap_data) != 0) {
+        if (verbose) {
+            fprintf(stderr, "Warning: failed to set capabilities: %s\n", strerror(errno));
+        }
+        return;
+    }
+    
+    for (uint32_t cap = 0; cap <= last_cap; cap++) {
+        // Ignore failures for individual capabilities as some may not be available
+        prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_RAISE, cap, 0, 0);
     }
 }
 
@@ -562,7 +557,7 @@ bool try_unshare(uid_t uid, gid_t gid, const char* unshare_uid, const char* unsh
         }
         fclose(f);
         
-        restore_capabilities();
+        restore_capabilities(verbose);
         
         if (!try_make_mount_private()) {
             fprintf(stderr, "Warning: failed to make mount private: %s\n", strerror(errno));
@@ -711,7 +706,10 @@ bool check_fuse(bool verbose, uid_t uid, gid_t gid, const char* unshare_uid_str,
         return true;
     }
     
-    return true; // Return true anyway to let FUSE try
+    // Both SUID fusermount and unshare failed, but we still return true
+    // to let FUSE mounting be attempted (it may work with non-SUID fusermount
+    // or the user may have other FUSE setup we don't detect)
+    return true;
 }
 
 /* Exit status to use when launching an AppImage fails.
@@ -1958,11 +1956,6 @@ int main(int argc, char* argv[]) {
     if (!check_fuse(verbose, uid, gid, target_uid_str, target_gid_str, &unshare_succeeded)) {
         fprintf(stderr, "FUSE is not available\n");
         exit(EXIT_EXECERROR);
-    }
-
-    // Restore capabilities if we unshared successfully
-    if (unshare_succeeded) {
-        restore_capabilities();
     }
 
     int dir_fd, res;
