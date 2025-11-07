@@ -66,7 +66,7 @@ jobs:
         # copy pubkey so that it's included with the files uploaded to the release page
         cp signing-pubkey.asc out/
 
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v5
       with:
         name: artifacts ${{ matrix.appimage_arch }}
         path: out/*
