@@ -64,8 +64,18 @@ extern int sqfs_opt_proc(void* data, const char* arg, int key, struct fuse_args*
 #include <libgen.h>
 #include <dirent.h>
 #include <ctype.h>
+#include <sched.h>
+#include <sys/mount.h>
+#include <sys/prctl.h>
+#include <sys/syscall.h>
+#include <linux/capability.h>
 
 const char* fusermountPath = NULL;
+
+// Constants for namespace and capability management
+#define DEFAULT_LAST_CAP 39
+#define UINT32_FULL_RANGE 4294967295U
+#define UID_GID_MAP_BUFFER_SIZE 64
 
 typedef struct {
     uint32_t lo;
@@ -414,6 +424,171 @@ int appimage_print_binary(char* fname, unsigned long offset, unsigned long lengt
 	return 0;
 }
 
+// Restore capabilities after entering user namespace
+void restore_capabilities(bool verbose) {
+    struct __user_cap_header_struct caps = {
+        .version = _LINUX_CAPABILITY_VERSION_3,
+        .pid = 0
+    };
+    struct __user_cap_data_struct cap_data[2] = {{0, 0, 0}, {0, 0, 0}};
+    
+    if (syscall(SYS_capget, &caps, &cap_data) != 0) {
+        if (verbose) {
+            fprintf(stderr, "Warning: failed to get capabilities: %s\n", strerror(errno));
+        }
+        return;
+    }
+    
+    FILE* f = fopen("/proc/sys/kernel/cap_last_cap", "r");
+    uint32_t last_cap = DEFAULT_LAST_CAP; // default fallback
+    if (f != NULL) {
+        if (fscanf(f, "%u", &last_cap) != 1) {
+            last_cap = DEFAULT_LAST_CAP;
+        }
+        fclose(f);
+    }
+    
+    uint64_t all_caps = (1ULL << (last_cap + 1)) - 1;
+    cap_data[0].effective = (uint32_t)(all_caps & 0xFFFFFFFF);
+    cap_data[0].permitted = (uint32_t)(all_caps & 0xFFFFFFFF);
+    cap_data[0].inheritable = (uint32_t)(all_caps & 0xFFFFFFFF);
+    cap_data[1].effective = (uint32_t)((all_caps >> 32) & 0xFFFFFFFF);
+    cap_data[1].permitted = (uint32_t)((all_caps >> 32) & 0xFFFFFFFF);
+    cap_data[1].inheritable = (uint32_t)((all_caps >> 32) & 0xFFFFFFFF);
+    
+    if (syscall(SYS_capset, &caps, &cap_data) != 0) {
+        if (verbose) {
+            fprintf(stderr, "Warning: failed to set capabilities: %s\n", strerror(errno));
+        }
+        return;
+    }
+    
+    for (uint32_t cap = 0; cap <= last_cap; cap++) {
+        // Ignore failures for individual capabilities as some may not be available
+        prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_RAISE, cap, 0, 0);
+    }
+}
+
+// Make all mounts private in the mount namespace
+bool try_make_mount_private(void) {
+    if (mount("none", "/", NULL, MS_REC | MS_PRIVATE, NULL) == 0) {
+        return true;
+    }
+    return false;
+}
+
+// Check if we're already in a user and mount namespace
+bool is_in_user_and_mount_namespace(void) {
+    FILE* f = fopen("/proc/self/uid_map", "r");
+    if (f == NULL) {
+        return false;
+    }
+    
+    char line[256];
+    bool result = false;
+    
+    if (fgets(line, sizeof(line), f) != NULL) {
+        // Parse the uid_map: "target_uid host_uid count"
+        uint32_t target_uid, host_uid, count;
+        if (sscanf(line, "%u %u %u", &target_uid, &host_uid, &count) == 3) {
+            // If count is less than full range, we're in a user namespace
+            if (count < UINT32_FULL_RANGE) {
+                result = try_make_mount_private();
+            }
+        }
+    }
+    
+    fclose(f);
+    return result;
+}
+
+// Try to create user and mount namespaces
+bool try_unshare(uid_t uid, gid_t gid, const char* unshare_uid, const char* unshare_gid, bool verbose) {
+    uid_t target_uid = uid;
+    gid_t target_gid = gid;
+    
+    if (unshare_uid != NULL && unshare_uid[0] != '\0') {
+        char* endptr;
+        long val = strtol(unshare_uid, &endptr, 10);
+        if (endptr != unshare_uid && *endptr == '\0' && val >= 0) {
+            target_uid = (uid_t)val;
+        }
+    }
+    
+    if (unshare_gid != NULL && unshare_gid[0] != '\0') {
+        char* endptr;
+        long val = strtol(unshare_gid, &endptr, 10);
+        if (endptr != unshare_gid && *endptr == '\0' && val >= 0) {
+            target_gid = (gid_t)val;
+        }
+    }
+    
+    int flags = CLONE_NEWUSER | CLONE_NEWNS;
+    if (unshare(flags) == 0) {
+        // Disable setgroups
+        FILE* f = fopen("/proc/self/setgroups", "w");
+        if (f != NULL) {
+            fputs("deny", f);
+            fclose(f);
+        }
+        
+        // Write uid_map
+        char uid_map[UID_GID_MAP_BUFFER_SIZE];
+        snprintf(uid_map, sizeof(uid_map), "%u %u 1", target_uid, uid);
+        f = fopen("/proc/self/uid_map", "w");
+        if (f == NULL) {
+            fprintf(stderr, "Failed to open /proc/self/uid_map: %s\n", strerror(errno));
+            return false;
+        }
+        if (fputs(uid_map, f) == EOF) {
+            fprintf(stderr, "Failed to write uid_map: %s\n", strerror(errno));
+            fclose(f);
+            return false;
+        }
+        fclose(f);
+        
+        // Write gid_map
+        char gid_map[UID_GID_MAP_BUFFER_SIZE];
+        snprintf(gid_map, sizeof(gid_map), "%u %u 1", target_gid, gid);
+        f = fopen("/proc/self/gid_map", "w");
+        if (f == NULL) {
+            fprintf(stderr, "Failed to open /proc/self/gid_map: %s\n", strerror(errno));
+            return false;
+        }
+        if (fputs(gid_map, f) == EOF) {
+            fprintf(stderr, "Failed to write gid_map: %s\n", strerror(errno));
+            fclose(f);
+            return false;
+        }
+        fclose(f);
+        
+        restore_capabilities(verbose);
+        
+        if (!try_make_mount_private()) {
+            fprintf(stderr, "Warning: failed to make mount private: %s\n", strerror(errno));
+        }
+        
+        if (verbose) {
+            fprintf(stderr, "Successfully created user and mount namespaces\n");
+        }
+        
+        return true;
+    }
+    
+    fprintf(stderr, "Failed to create user and mount namespaces: %s\n", strerror(errno));
+    return false;
+}
+
+// Check if a binary is setuid root and executable
+bool is_suid_exe(const char* path) {
+    struct stat sb;
+    if (stat(path, &sb) == -1) {
+        return false;
+    }
+    // Check if owned by root, has SUID bit, and is executable
+    return (sb.st_uid == 0 && (sb.st_mode & S_ISUID) != 0 && (sb.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH)) != 0);
+}
+
 char* find_fusermount(bool verbose) {
     char* fusermount_base = "fusermount";
 
@@ -449,16 +624,9 @@ char* find_fusermount(bool verbose) {
                     sprintf(fusermount_full_path, "%s/%s", dir, entry->d_name);
 
                     // Check if the binary is setuid root
-                    struct stat sb;
-                    if (stat(fusermount_full_path, &sb) == -1) {
-                        perror("stat");
-                        free(fusermount_full_path);
-                        continue;
-                    }
-
-                    if (sb.st_uid != 0 || (sb.st_mode & S_ISUID) == 0) {
+                    if (!is_suid_exe(fusermount_full_path)) {
                         if (verbose) {
-                            printf("Not setuid root, skipping...\n");
+                            printf("Not setuid root executable, skipping...\n");
                         }
                         free(fusermount_full_path);
                         continue;
@@ -512,6 +680,41 @@ char* find_fusermount(bool verbose) {
 
     free(path_copy);
     return NULL;
+}
+
+// Check FUSE availability and attempt unshare if needed
+bool check_fuse(bool verbose, uid_t uid, gid_t gid, const char* unshare_uid_str, const char* unshare_gid_str, bool* unshare_succeeded) {
+    // First check if /dev/fuse is accessible
+    if (access("/dev/fuse", R_OK) != 0 || access("/dev/fuse", W_OK) != 0) {
+        return false;
+    }
+    
+    // If we're root or already in a namespace, we're good
+    if (uid == 0 || *unshare_succeeded || is_in_user_and_mount_namespace()) {
+        return true;
+    }
+    
+    // Check if we have a SUID fusermount
+    char* fusermount = find_fusermount(verbose);
+    if (fusermount != NULL) {
+        free(fusermount);
+        return true;
+    }
+    
+    // No SUID fusermount found, try unshare
+    if (verbose) {
+        fprintf(stderr, "SUID fusermount not found in PATH, trying to unshare...\n");
+    }
+    
+    if (try_unshare(uid, gid, unshare_uid_str, unshare_gid_str, verbose)) {
+        *unshare_succeeded = true;
+        return true;
+    }
+    
+    // Both SUID fusermount and unshare failed, but we still return true
+    // to let FUSE mounting be attempted (it may work with non-SUID fusermount
+    // or the user may have other FUSE setup we don't detect)
+    return true;
 }
 
 /* Exit status to use when launching an AppImage fails.
@@ -681,8 +884,17 @@ void print_help(const char* appimage_path) {
             "  --appimage-portable-config      Create a portable config folder to use as\n"
             "                                  $XDG_CONFIG_HOME\n"
             "  --appimage-signature            Print digital signature embedded in AppImage\n"
+            "  --appimage-unshare              Try to use unshare user and mount namespaces\n"
             "  --appimage-updateinfo[rmation]  Print update info embedded in AppImage\n"
             "  --appimage-version              Print version of AppImage runtime\n"
+            "\n"
+            "Environment variables:\n"
+            "\n"
+            "  APPIMAGE_EXTRACT_AND_RUN=1      Temporarily extract and run without FUSE\n"
+            "  APPIMAGE_UNSHARE=1              Try to use unshare user and mount namespaces\n"
+            "  APPIMAGE_UNSHARE_ROOT=1         Map to root (UID 0, GID 0) in user namespace\n"
+            "  APPIMAGE_UNSHARE_UID=<uid>      Map to specified UID in user namespace\n"
+            "  APPIMAGE_UNSHARE_GID=<gid>      Map to specified GID in user namespace\n"
             "\n"
             "Portable home:\n"
             "\n"
@@ -1697,11 +1909,57 @@ int main(int argc, char* argv[]) {
     portable_option(arg, appimage_path, "home");
     portable_option(arg, appimage_path, "config");
 
+    // Check for --appimage-unshare flag
+    bool requested_unshare = false;
+    if (arg && strcmp(arg, "appimage-unshare") == 0) {
+        requested_unshare = true;
+    }
+
     // If there is an argument starting with appimage- (but not appimage-mount which is handled further down)
     // then stop here and print an error message
-    if ((arg && strncmp(arg, "appimage-", 8) == 0) && (arg && strcmp(arg, "appimage-mount") != 0)) {
+    if ((arg && strncmp(arg, "appimage-", 8) == 0) && 
+        (arg && strcmp(arg, "appimage-mount") != 0) && 
+        (arg && strcmp(arg, "appimage-unshare") != 0)) {
         fprintf(stderr, "--%s is not yet implemented in version %s\n", arg, GIT_COMMIT);
         exit(1);
+    }
+
+    // Get UID and GID for unshare
+    uid_t uid = getuid();
+    gid_t gid = getgid();
+
+    // Check environment variables for unshare
+    const char* unshare_env = getenv("APPIMAGE_UNSHARE");
+    const char* unshare_root = getenv("APPIMAGE_UNSHARE_ROOT");
+    const char* unshare_uid_env = getenv("APPIMAGE_UNSHARE_UID");
+    const char* unshare_gid_env = getenv("APPIMAGE_UNSHARE_GID");
+
+    // Determine if we should attempt unshare
+    bool should_unshare = requested_unshare ||
+                         (unshare_env != NULL && strcmp(unshare_env, "1") == 0) ||
+                         (unshare_root != NULL && strcmp(unshare_root, "1") == 0) ||
+                         (unshare_uid_env != NULL && unshare_uid_env[0] != '\0') ||
+                         (unshare_gid_env != NULL && unshare_gid_env[0] != '\0');
+
+    // If APPIMAGE_UNSHARE_ROOT is set, map to root
+    const char* target_uid_str = unshare_uid_env;
+    const char* target_gid_str = unshare_gid_env;
+    if (unshare_root != NULL && strcmp(unshare_root, "1") == 0) {
+        target_uid_str = "0";
+        target_gid_str = "0";
+    }
+
+    bool unshare_succeeded = false;
+    
+    // Attempt unshare if requested
+    if (should_unshare) {
+        unshare_succeeded = try_unshare(uid, gid, target_uid_str, target_gid_str, verbose);
+    }
+
+    // Check FUSE availability and attempt unshare if needed
+    if (!check_fuse(verbose, uid, gid, target_uid_str, target_gid_str, &unshare_succeeded)) {
+        fprintf(stderr, "FUSE is not available\n");
+        exit(EXIT_EXECERROR);
     }
 
     int dir_fd, res;
