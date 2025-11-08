@@ -1865,7 +1865,10 @@ int main(int argc, char* argv[]) {
         } else {
             /* Parent process - wait for AppRun to finish, then close pipe */
             int status;
-            pid_t waited_pid = waitpid(apprun_pid, &status, 0);
+            pid_t waited_pid;
+            do {
+                waited_pid = waitpid(apprun_pid, &status, 0);
+            } while (waited_pid == -1 && errno == EINTR);
             if (waited_pid == -1) {
                 perror("waitpid error");
                 close(keepalive_pipe[0]);
