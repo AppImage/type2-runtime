@@ -1846,6 +1846,9 @@ int main(int argc, char* argv[]) {
         strcpy(filename, mount_dir);
         strcat(filename, "/AppRun");
 
+        /* Close the keepalive pipe before exec to ensure FUSE daemon terminates when we exit */
+        close(keepalive_pipe[0]);
+
         /* TODO: Find a way to get the exit status and/or output of this */
         execv(filename, real_argv);
         /* Error if we continue here */
