@@ -1846,14 +1846,37 @@ int main(int argc, char* argv[]) {
         strcpy(filename, mount_dir);
         strcat(filename, "/AppRun");
 
-        /* Close the keepalive pipe before exec to ensure FUSE daemon terminates when we exit */
-        close(keepalive_pipe[0]);
+        /* Fork before exec to ensure we can close the keepalive pipe after AppRun exits */
+        pid_t apprun_pid = fork();
+        if (apprun_pid == -1) {
+            perror("fork error");
+            exit(EXIT_EXECERROR);
+        }
 
-        /* TODO: Find a way to get the exit status and/or output of this */
-        execv(filename, real_argv);
-        /* Error if we continue here */
-        perror("execv error");
-        exit(EXIT_EXECERROR);
+        if (apprun_pid == 0) {
+            /* Child process - exec AppRun */
+            execv(filename, real_argv);
+            /* Error if we continue here */
+            perror("execv error");
+            exit(EXIT_EXECERROR);
+        } else {
+            /* Parent process - wait for AppRun to finish, then close pipe */
+            int status;
+            waitpid(apprun_pid, &status, 0);
+            
+            /* Close the keepalive pipe after AppRun exits to terminate FUSE daemon */
+            close(keepalive_pipe[0]);
+            
+            /* Exit with the same status as AppRun */
+            if (WIFEXITED(status)) {
+                exit(WEXITSTATUS(status));
+            } else if (WIFSIGNALED(status)) {
+                /* Child was killed by a signal, exit with 128 + signal number */
+                exit(128 + WTERMSIG(status));
+            } else {
+                exit(EXIT_EXECERROR);
+            }
+        }
     }
 
     return 0;
