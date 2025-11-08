@@ -1856,7 +1856,6 @@ int main(int argc, char* argv[]) {
         if (apprun_pid == 0) {
             /* Child process - close keepalive pipe before exec */
             close(keepalive_pipe[0]);
-            close(keepalive_pipe[1]);
             
             /* exec AppRun */
             execv(filename, real_argv);
