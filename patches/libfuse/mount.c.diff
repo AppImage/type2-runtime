@@ -1,16 +1,15 @@
-diff --git a/lib/mount.c b/lib/mount.c
-index d71e6fc..ab3f54b 100644
+diff -ur a/lib/mount.c b/lib/mount.c
 --- a/lib/mount.c
 +++ b/lib/mount.c
-@@ -41,7 +41,6 @@
+@@ -46,7 +46,6 @@
  #define umount2(mnt, flags) unmount(mnt, (flags == 2) ? MNT_FORCE : 0)
  #endif
  
 -#define FUSERMOUNT_PROG		"fusermount3"
  #define FUSE_COMMFD_ENV		"_FUSE_COMMFD"
+ #define FUSE_COMMFD2_ENV	"_FUSE_COMMFD2"
  
- #ifndef HAVE_FORK
-@@ -117,17 +116,44 @@ static const struct fuse_opt fuse_mount_opts[] = {
+@@ -121,6 +120,35 @@
  	FUSE_OPT_END
  };
  
@@ -42,64 +41,94 @@ index d71e6fc..ab3f54b 100644
 +	return fusermountProg;
 +}
 +
- static void exec_fusermount(const char *argv[])
++
+ /*
+  * Running fusermount by calling 'posix_spawn'
+  *
+@@ -129,19 +157,13 @@
+ static int fusermount_posix_spawn(posix_spawn_file_actions_t *action,
+ 				  char const * const argv[], pid_t *out_pid)
  {
--	execv(FUSERMOUNT_DIR "/" FUSERMOUNT_PROG, (char **) argv);
--	execvp(FUSERMOUNT_PROG, (char **) argv);
-+	execv(fusermountProg(), (char **) argv);
- }
+-	const char *full_path = FUSERMOUNT_DIR "/" FUSERMOUNT_PROG;
+ 	pid_t pid;
+ 
+ 	/* See man 7 environ for the global environ pointer */
+ 
+ 	/* first try the install path */
+-	int status = posix_spawn(&pid, full_path,  action, NULL,
++	int status = posix_spawn(&pid, fusermountProg(),  action, NULL,
+ 				 (char * const *) argv, environ);
+-	if (status != 0) {
+-		/* if that fails, try a system install */
+-		status = posix_spawnp(&pid, FUSERMOUNT_PROG, action, NULL,
+-				      (char * const *) argv, environ);
+-	}
+ 
+ 	if (status != 0) {
+ 		fuse_log(FUSE_LOG_ERR,
+@@ -160,12 +182,12 @@
  
  void fuse_mount_version(void)
  {
- 	int pid = fork();
- 	if (!pid) {
--		const char *argv[] = { FUSERMOUNT_PROG, "--version", NULL };
-+		const char *argv[] = { fusermountProg(), "--version", NULL };
- 		exec_fusermount(argv);
- 		_exit(1);
- 	} else if (pid != -1)
-@@ -300,7 +326,7 @@ void fuse_kern_unmount(const char *mountpoint, int fd)
+-	char const *const argv[] = {FUSERMOUNT_PROG, "--version", NULL};
++	char const *const argv[] = {fusermountProg(), "--version", NULL};
+ 	int status = fusermount_posix_spawn(NULL, argv, NULL);
+ 
+ 	if(status != 0)
+ 		fuse_log(FUSE_LOG_ERR, "Running '%s --version' failed",
+-			 FUSERMOUNT_PROG);
++			 fusermountProg());
+ }
+ 
+ struct mount_flags {
+@@ -337,12 +359,12 @@
  		return;
  
- 	if(pid == 0) {
--		const char *argv[] = { FUSERMOUNT_PROG, "-u", "-q", "-z",
-+		const char *argv[] = { fusermountProg(), "-u", "-q", "-z",
- 				       "--", mountpoint, NULL };
+ 	char const * const argv[] =
+-		{ FUSERMOUNT_PROG, "--unmount", "--quiet", "--lazy",
++		{ fusermountProg(), "--unmount", "--quiet", "--lazy",
+ 				"--", mountpoint, NULL };
+ 	int status = fusermount_posix_spawn(NULL, argv, NULL);
+ 	if(status != 0) {
+ 		fuse_log(FUSE_LOG_ERR, "Spawning %s to unmount failed: %s",
+-			 FUSERMOUNT_PROG, strerror(-status));
++			 fusermountProg(), strerror(-status));
+ 		return;
+ 	}
+ }
+@@ -378,7 +400,7 @@
+ 	setenv(FUSE_COMMFD2_ENV, arg_fd_entry, 1);
  
- 		exec_fusermount(argv);
-@@ -346,7 +372,7 @@ static int setup_auto_unmount(const char *mountpoint, int quiet)
- 			}
- 		}
- 
--		argv[a++] = FUSERMOUNT_PROG;
-+		argv[a++] = fusermountProg();
- 		argv[a++] = "--auto-unmount";
- 		argv[a++] = "--";
- 		argv[a++] = mountpoint;
-@@ -357,7 +383,7 @@ static int setup_auto_unmount(const char *mountpoint, int quiet)
- 		snprintf(env, sizeof(env), "%i", fds[0]);
- 		setenv(FUSE_COMMFD_ENV, env, 1);
- 		exec_fusermount(argv);
--		perror("fuse: failed to exec fusermount3");
-+		perror("fuse: failed to exec $FUSERMOUNT_PROG");
- 		_exit(1);
+ 	char const *const argv[] = {
+-		FUSERMOUNT_PROG,
++		fusermountProg(),
+ 		"--auto-unmount",
+ 		"--",
+ 		mountpoint,
+@@ -434,7 +456,7 @@
+ 	res = socketpair(PF_UNIX, SOCK_STREAM, 0, fds);
+ 	if(res == -1) {
+ 		fuse_log(FUSE_LOG_ERR, "Running %s: socketpair() failed: %s\n",
+-			 FUSERMOUNT_PROG, strerror(errno));
++			 fusermountProg(), strerror(errno));
+ 		return -1;
  	}
  
-@@ -407,7 +433,7 @@ static int fuse_mount_fusermount(const char *mountpoint, struct mount_opts *mo,
- 			}
- 		}
+@@ -451,7 +473,7 @@
+ 	setenv(FUSE_COMMFD2_ENV, arg_fd_entry, 1);
  
--		argv[a++] = FUSERMOUNT_PROG;
-+		argv[a++] = fusermountProg();
- 		if (opts) {
- 			argv[a++] = "-o";
- 			argv[a++] = opts;
-@@ -421,7 +447,7 @@ static int fuse_mount_fusermount(const char *mountpoint, struct mount_opts *mo,
- 		snprintf(env, sizeof(env), "%i", fds[0]);
- 		setenv(FUSE_COMMFD_ENV, env, 1);
- 		exec_fusermount(argv);
--		perror("fuse: failed to exec fusermount3");
-+		perror("fuse: failed to exec $FUSERMOUNT_PROG");
- 		_exit(1);
+ 	char const *const argv[] = {
+-		FUSERMOUNT_PROG,
++		fusermountProg(),
+ 		"-o", opts ? opts : "",
+ 		"--",
+ 		mountpoint,
+@@ -476,7 +498,7 @@
+ 		close(fds[0]);
+ 		close(fds[1]);
+ 		fuse_log(FUSE_LOG_ERR, "posix_spawn(p)() for %s failed: %s",
+-			 FUSERMOUNT_PROG, strerror(-status));
++			 fusermountProg(), strerror(-status));
+ 		return -1;
  	}
  
