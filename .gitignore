@@ -67,3 +67,4 @@ squashfs-root/
 
 # build products
 src/runtime/runtime
+_codeql_detected_source_root
