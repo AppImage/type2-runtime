@@ -1,9 +1,11 @@
 # How to build the runtime
 
-We maintain and provide two official ways to build the runtime:
+We maintain and provide two official ways to build the runtime for Linux:
 
 - a Docker-based setup that caches dependencies and isolates the build environment from the system
 - a `chroot`-based method that can be used in isolated environments like, e.g., GitHub codespaces, if you cannot use Docker
+
+The FreeBSD runtime is built natively instead; see [FreeBSD](#freebsd) below.
 
 **Please note: We recommend regular users to use the Docker-based setup whenever possible!** The chroot based setup imposes a risk to break your local machine. It is meant **only** for environments that are otherwise isolated or reproducible, e.g., GitHub codespaces. 
 
@@ -91,4 +93,25 @@ To specify commands that should be run, use the established `--` to distinguish 
 # fish
 > env ARCH=<arch> scripts/create-build-container.sh -u $(id -u):(id -g) -- bash some-script.sh
 ```
+
+
+## FreeBSD
+
+The FreeBSD runtime is a separate binary from the Linux one and is built natively, on FreeBSD itself. There is no container or chroot involved; run the following as root, in a throwaway machine or VM, since it installs packages and libraries system-wide:
+
+```sh
+> scripts/bsd/build.sh
+```
+
+The result ends up in `out/` as `runtime-freebsd-<arch>`, alongside its separate debug symbols.
+
+The script installs the required packages, then builds a static libfuse and squashfuse from source (FreeBSD packages both, but ships shared libraries only, and the runtime is linked statically), and finally builds the runtime itself. The three stages are also available individually as `scripts/bsd/install-dependencies.sh` and `scripts/bsd/build-runtime.sh`.
+
+To check that a runtime you built actually works, `scripts/bsd/test-runtime.sh` assembles a minimal AppImage around it and runs it:
+
+```sh
+> scripts/bsd/test-runtime.sh out/runtime-freebsd-x86_64
+```
+
+This is what CI does, in a VM provided by [vmactions/freebsd-vm](https://github.com/vmactions/freebsd-vm), as GitHub does not offer FreeBSD runners.
 
