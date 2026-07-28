@@ -1,0 +1,77 @@
+name: build (FreeBSD)
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+# This ensures that jobs get canceled when force-pushing
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - appimage_arch: x86_64
+          vm_arch: x86_64
+        - appimage_arch: aarch64
+          vm_arch: aarch64
+
+    # the FreeBSD VM is provided by the vmactions action, so the job itself
+    # runs on a regular Linux runner regardless of the target architecture
+    runs-on: ubuntu-latest
+
+    # aarch64 is fully emulated and takes considerably longer than x86_64,
+    # which is accelerated; this is a backstop against a hung VM, not a target
+    timeout-minutes: 180
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v7
+
+    - name: Get git hash
+      run: |
+           echo -n "https://github.com/${GITHUB_REPOSITORY}/commit/" > src/runtime/version
+           git rev-parse --short HEAD  | xargs >> src/runtime/version
+
+    - name: Build in FreeBSD VM
+      uses: vmactions/freebsd-vm@v1
+      with:
+        release: "14.3"
+        arch: ${{ matrix.vm_arch }}
+        usesh: true
+        cache-after-prepare: true
+        prepare: |
+          # binutils provides objcopy and the GNU ld the runtime has to be
+          # linked with; the rest is the toolchain for libfuse and squashfuse
+          pkg install -y \
+            autoconf \
+            automake \
+            binutils \
+            gmake \
+            liblz4 \
+            libtool \
+            lzo2 \
+            meson \
+            mimalloc \
+            ninja \
+            pkgconf \
+            squashfs-tools \
+            zstd
+        run: |
+          set -e
+          # the dependencies are built in the run step rather than in prepare
+          # because the prepared-image cache key only covers the prepare script,
+          # so a change to install-dependencies.sh would otherwise be ignored
+          ./scripts/bsd/install-dependencies.sh
+          ./scripts/bsd/build-runtime.sh
+          ./scripts/bsd/test-runtime.sh out/runtime-freebsd-${{ matrix.appimage_arch }}
+
+    - uses: actions/upload-artifact@v7
+      with:
+        name: artifacts freebsd ${{ matrix.appimage_arch }}
+        path: out/*
