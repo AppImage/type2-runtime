@@ -65,7 +65,35 @@ extern int sqfs_opt_proc(void* data, const char* arg, int key, struct fuse_args*
 #include <dirent.h>
 #include <ctype.h>
 
+/* Platform capabilities.
+ *
+ * Linux exposes the path of the running executable as the magic symlink
+ * /proc/self/exe, and mounts FUSE file systems through a setuid fusermount
+ * helper that has to be located on $PATH. FreeBSD has neither: the path of
+ * the running executable comes from the KERN_PROC_PATHNAME sysctl, and
+ * libfuse mounts through mount_fusefs(8), which it invokes itself.
+ */
+#if defined(__linux__)
+#define APPIMAGE_HAVE_PROC_SELF_EXE 1
+#define APPIMAGE_HAVE_FUSERMOUNT 1
+#endif
+
+/* On FreeBSD the mount point is not necessarily populated yet by the time
+ * libfuse reports the file system as mounted, so the parent has to wait for
+ * the entrypoint to show up before it can exec it.
+ */
+#if defined(__FreeBSD__)
+#define APPIMAGE_MOUNT_VISIBLE_ASYNC 1
+#include <time.h>
+#endif
+
+#if !defined(APPIMAGE_HAVE_PROC_SELF_EXE)
+#include <sys/sysctl.h>
+#endif
+
+#if defined(APPIMAGE_HAVE_FUSERMOUNT)
 const char* fusermountPath = NULL;
+#endif
 
 typedef struct {
     uint32_t lo;
@@ -414,6 +442,7 @@ int appimage_print_binary(char* fname, unsigned long offset, unsigned long lengt
 	return 0;
 }
 
+#if defined(APPIMAGE_HAVE_FUSERMOUNT)
 char* find_fusermount(bool verbose) {
     char* fusermount_base = "fusermount";
 
@@ -513,6 +542,7 @@ char* find_fusermount(bool verbose) {
     free(path_copy);
     return NULL;
 }
+#endif
 
 /* Exit status to use when launching an AppImage fails.
  * For applications that assign meanings to exit status codes (e.g. rsync),
@@ -521,6 +551,34 @@ char* find_fusermount(bool verbose) {
  * error, see SYSTEM(3POSIX).
  */
 #define EXIT_EXECERROR  127     /* Execution error exit status.  */
+
+/* Resolve appimage_path into the caller's buffer.
+ *
+ * On Linux appimage_path is normally the magic symlink /proc/self/exe, which
+ * has to be read to obtain the path of the running AppImage. On systems
+ * without /proc/self/exe the path is resolved once at startup in main(), so
+ * here it can be copied as is.
+ *
+ * Returns false on failure, in which case fullpath is left untouched.
+ */
+static bool resolve_appimage_path(const char* const appimage_path, char* const fullpath, const size_t fullpath_size) {
+#if defined(APPIMAGE_HAVE_PROC_SELF_EXE)
+    /* readlink() does not NUL-terminate, so leave room for the terminator */
+    const ssize_t length = readlink(appimage_path, fullpath, fullpath_size - 1);
+
+    if (length < 0)
+        return false;
+
+    fullpath[length] = '\0';
+#else
+    if (strlen(appimage_path) >= fullpath_size)
+        return false;
+
+    strcpy(fullpath, appimage_path);
+#endif
+
+    return true;
+}
 
 struct stat st;
 
@@ -724,12 +782,10 @@ void portable_option(const char* arg, const char* appimage_path, const char* nam
         char portable_dir[PATH_MAX];
         char fullpath[PATH_MAX];
 
-        ssize_t length = readlink(appimage_path, fullpath, sizeof(fullpath));
-        if (length < 0) {
+        if (!resolve_appimage_path(appimage_path, fullpath, sizeof(fullpath))) {
             fprintf(stderr, "Error getting realpath for %s\n", appimage_path);
             exit(EXIT_FAILURE);
         }
-        fullpath[length] = '\0';
 
         sprintf(portable_dir, "%s.%s", fullpath, name);
         if (!mkdir(portable_dir, S_IRWXU))
@@ -1480,7 +1536,18 @@ int main(int argc, char* argv[]) {
      * functionality specifically for builds used by appimaged.
      */
     if (getenv("TARGET_APPIMAGE") == NULL) {
+#if defined(APPIMAGE_HAVE_PROC_SELF_EXE)
         strcpy(appimage_path, "/proc/self/exe");
+#else
+        /* Without /proc/self/exe, ask the kernel for the path of this process */
+        int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PATHNAME, -1};
+        size_t path_len = sizeof(appimage_path);
+
+        if (sysctl(mib, 4, appimage_path, &path_len, NULL, 0) != 0) {
+            perror("Failed to obtain absolute path");
+            exit(EXIT_EXECERROR);
+        }
+#endif
         strcpy(argv0_path, argv[0]);
     } else {
         strcpy(appimage_path, getenv("TARGET_APPIMAGE"));
@@ -1511,12 +1578,10 @@ int main(int argc, char* argv[]) {
     if (arg && strcmp(arg, "appimage-help") == 0) {
         char fullpath[PATH_MAX];
 
-        ssize_t length = readlink(appimage_path, fullpath, sizeof(fullpath));
-        if (length < 0) {
+        if (!resolve_appimage_path(appimage_path, fullpath, sizeof(fullpath))) {
             fprintf(stderr, "Error getting realpath for %s\n", appimage_path);
             exit(EXIT_EXECERROR);
         }
-        fullpath[length] = '\0';
 
         print_help(fullpath);
         exit(0);
@@ -1561,12 +1626,10 @@ int main(int argc, char* argv[]) {
 
     if (getenv("TARGET_APPIMAGE") == NULL) {
         // If we are operating on this file itself
-        ssize_t len = readlink(appimage_path, fullpath, sizeof(fullpath));
-        if (len < 0) {
+        if (!resolve_appimage_path(appimage_path, fullpath, sizeof(fullpath))) {
             perror("Failed to obtain absolute path");
             exit(EXIT_EXECERROR);
         }
-        fullpath[len] = '\0';
     } else {
         char* abspath = realpath(appimage_path, NULL);
         if (abspath == NULL) {
@@ -1737,6 +1800,7 @@ int main(int argc, char* argv[]) {
     if (pid == 0) {
         /* in child */
 
+#if defined(APPIMAGE_HAVE_FUSERMOUNT)
         fusermountPath = getenv("FUSERMOUNT_PROG");
         if (fusermountPath == NULL) {
             char* new_prog = find_fusermount(verbose);
@@ -1750,6 +1814,7 @@ int main(int argc, char* argv[]) {
                 printf("Error: No suitable fusermount binary found on the $PATH\n");
             }
         }
+#endif
 
         char* child_argv[5];
 
@@ -1845,6 +1910,22 @@ int main(int argc, char* argv[]) {
         char filename[mount_dir_size + 8]; /* enough for mount_dir + "/AppRun" */
         strcpy(filename, mount_dir);
         strcat(filename, "/AppRun");
+
+#if defined(APPIMAGE_MOUNT_VISIBLE_ASYNC)
+        /* Poll for the entrypoint for up to a second, 10 ms at a time.
+         * In practice a single round is enough; the loop exits as soon as the
+         * mount point is populated, so a system that does not need this pays
+         * one stat() call.
+         */
+        for (int wait_round = 0; wait_round < 100; ++wait_round) {
+            struct stat mounted_st;
+            if (stat(filename, &mounted_st) == 0)
+                break;
+
+            const struct timespec ten_ms = {0, 10 * 1000 * 1000};
+            nanosleep(&ten_ms, NULL);
+        }
+#endif
 
         /* TODO: Find a way to get the exit status and/or output of this */
         execv(filename, real_argv);
