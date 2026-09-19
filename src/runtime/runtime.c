@@ -414,7 +414,97 @@ int appimage_print_binary(char* fname, unsigned long offset, unsigned long lengt
 	return 0;
 }
 
-char* find_fusermount(bool verbose) {
+/* Runs "<path> --version" and returns true if it exits successfully.
+ * If require_defused is set, the output must also identify the binary as defused
+ * (https://github.com/Skyb0rg007/defused), a fusermount3 replacement which works
+ * without the setuid bit and hence cannot be recognized by its permissions. */
+static bool fusermount_version_ok(const char* path, bool verbose, bool require_defused) {
+    int out_pipe[2];
+    if (require_defused && pipe(out_pipe) == -1) {
+        perror("pipe");
+        return false;
+    }
+
+    pid_t pid = fork();
+    if (pid == -1) {
+        perror("fork");
+        if (require_defused) {
+            close(out_pipe[0]);
+            close(out_pipe[1]);
+        }
+        return false;
+    }
+
+    if (pid == 0) {
+        // Child process
+        if (require_defused) {
+            close(out_pipe[0]);
+            dup2(out_pipe[1], 1);
+            close(out_pipe[1]);
+        } else if (!verbose) {
+            close(1);
+        }
+
+        // close stderr if not in verbose mode
+        if (!verbose) {
+            close(2);
+        }
+
+        char* args[] = {(char*) path, "--version", NULL};
+        execv(path, args);
+        // If execv returns, the executable could not be run
+        _exit(1);
+    }
+
+    // Parent process
+    bool is_defused = false;
+    if (require_defused) {
+        close(out_pipe[1]);
+
+        char output[256];
+        size_t len = 0;
+        // Read until EOF even when the buffer is full so that the child never blocks on a full pipe
+        for (;;) {
+            char chunk[256];
+            ssize_t n = read(out_pipe[0], chunk, sizeof(chunk));
+            if (n == -1 && errno == EINTR) {
+                continue;
+            }
+            if (n <= 0) {
+                break;
+            }
+            size_t room = sizeof(output) - 1 - len;
+            size_t take = (size_t) n < room ? (size_t) n : room;
+            memcpy(output + len, chunk, take);
+            len += take;
+        }
+        output[len] = '\0';
+        close(out_pipe[0]);
+
+        if (verbose) {
+            printf("%s", output);
+        }
+
+        is_defused = strstr(output, "(defused)") != NULL;
+    }
+
+    int status;
+    if (waitpid(pid, &status, 0) == -1) {
+        perror("waitpid");
+        return false;
+    }
+
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        return false;
+    }
+
+    return !require_defused || is_defused;
+}
+
+/* Searches $PATH for fusermount, fusermount3, ... binaries.
+ * If want_setuid is set, only setuid root binaries are accepted, otherwise
+ * only executables which identify themselves as defused. */
+static char* find_fusermount_in_path(bool verbose, bool want_setuid) {
     char* fusermount_base = "fusermount";
 
     char* fusermount_path = getenv("PATH");
@@ -435,75 +525,68 @@ char* find_fusermount(bool verbose) {
         struct dirent* entry;
         while ((entry = readdir(dir_ptr)) != NULL) {
             // Check if the entry starts with "fusermount"
-            if (strncmp(entry->d_name, fusermount_base, 10) == 0) {
-                // Check if the rest of the entry is a digit
-                char* suffix = entry->d_name + 10;
-                int j = 0;
-                while (suffix[j] != '\0' && isdigit(suffix[j])) {
-                    j++;
+            if (strncmp(entry->d_name, fusermount_base, 10) != 0) {
+                continue;
+            }
+
+            // Check if the rest of the entry is a digit
+            char* suffix = entry->d_name + 10;
+            int j = 0;
+            while (suffix[j] != '\0' && isdigit(suffix[j])) {
+                j++;
+            }
+
+            if (suffix[j] != '\0') {
+                continue;
+            }
+
+            // Construct the full path of the entry
+            char* fusermount_full_path = malloc(strlen(dir) + strlen(entry->d_name) + 2);
+            sprintf(fusermount_full_path, "%s/%s", dir, entry->d_name);
+
+            struct stat sb;
+            if (stat(fusermount_full_path, &sb) == -1) {
+                perror("stat");
+                free(fusermount_full_path);
+                continue;
+            }
+
+            bool is_setuid_root = sb.st_uid == 0 && (sb.st_mode & S_ISUID) != 0;
+
+            if (want_setuid) {
+                if (!is_setuid_root) {
+                    if (verbose) {
+                        printf("Not setuid root, skipping %s...\n", fusermount_full_path);
+                    }
+                    free(fusermount_full_path);
+                    continue;
                 }
 
-                if (suffix[j] == '\0') {
-                    // Construct the full path of the entry
-                    char* fusermount_full_path = malloc(strlen(dir) + strlen(entry->d_name) + 2);
-                    sprintf(fusermount_full_path, "%s/%s", dir, entry->d_name);
+                if (verbose) {
+                    printf("Found setuid root executable: %s\n", fusermount_full_path);
+                }
+            } else {
+                // setuid root binaries were already rejected by the first pass
+                if (is_setuid_root || !S_ISREG(sb.st_mode) || access(fusermount_full_path, X_OK) != 0) {
+                    free(fusermount_full_path);
+                    continue;
+                }
 
-                    // Check if the binary is setuid root
-                    struct stat sb;
-                    if (stat(fusermount_full_path, &sb) == -1) {
-                        perror("stat");
-                        free(fusermount_full_path);
-                        continue;
-                    }
-
-                    if (sb.st_uid != 0 || (sb.st_mode & S_ISUID) == 0) {
-                        if (verbose) {
-                            printf("Not setuid root, skipping...\n");
-                        }
-                        free(fusermount_full_path);
-                        continue;
-                    }
-
-                    if (verbose) {
-                        printf("Found setuid root executable: %s\n", fusermount_full_path);
-                    }
-
-                    pid_t pid = fork();
-                    if (pid == -1) {
-                        perror("fork");
-                        free(fusermount_full_path);
-                        continue;
-                    }
-
-                    if (pid == 0) {
-                        // Child process
-
-                        // close stdout and stderr if not in verbose mode
-                        if (!verbose) {
-                            close(1);
-                            close(2);
-                        }
-
-                        char* args[] = {fusermount_full_path, "--version", NULL};
-                        execvp(fusermount_full_path, args);
-                        // If execvp returns, it means the executable was not found
-                        exit(1);
-                    } else {
-                        // Parent process
-                        int status;
-                        waitpid(pid, &status, 0);
-
-                        if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
-                            // The executable was found and executed successfully
-                            closedir(dir_ptr);
-                            free(path_copy);
-                            return fusermount_full_path;
-                        }
-
-                        free(fusermount_full_path);
-                    }
+                if (verbose) {
+                    printf("Checking whether %s is defused...\n", fusermount_full_path);
                 }
             }
+
+            if (fusermount_version_ok(fusermount_full_path, verbose, !want_setuid)) {
+                if (verbose && !want_setuid) {
+                    printf("Found defused executable: %s\n", fusermount_full_path);
+                }
+                closedir(dir_ptr);
+                free(path_copy);
+                return fusermount_full_path;
+            }
+
+            free(fusermount_full_path);
         }
 
         closedir(dir_ptr);
@@ -512,6 +595,19 @@ char* find_fusermount(bool verbose) {
 
     free(path_copy);
     return NULL;
+}
+
+char* find_fusermount(bool verbose) {
+    char* result = find_fusermount_in_path(verbose, true);
+    if (result != NULL) {
+        return result;
+    }
+
+    // Distributions running with NoNewPrivs replace the setuid fusermount3 by defused
+    if (verbose) {
+        printf("No setuid root fusermount found, looking for defused...\n");
+    }
+    return find_fusermount_in_path(verbose, false);
 }
 
 /* Exit status to use when launching an AppImage fails.
