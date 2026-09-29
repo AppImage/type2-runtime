@@ -1,4 +1,4 @@
-FROM alpine:3.21
+FROM alpine:3.24
 
 # includes dependencies from https://git.alpinelinux.org/aports/tree/main/fuse3/APKBUILD
 RUN apk add --no-cache \
