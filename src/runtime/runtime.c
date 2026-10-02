@@ -56,6 +56,7 @@ extern int sqfs_opt_proc(void* data, const char* arg, int key, struct fuse_args*
 #include <string.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <stdbool.h>
 #include <errno.h>
 #include <sys/wait.h>
 #include <fnmatch.h>
@@ -588,6 +589,99 @@ extern int fusefs_main(int argc, char* argv[], void (* mounted)(void));
 
 static pid_t fuse_pid;
 static int keepalive_pipe[2];
+static const char* fuse_mount_path = NULL;
+
+/* Returns true if path is the mount point or lies below it. */
+static bool
+path_in_mount(const char* path, const char* mount) {
+    size_t len = strlen(mount);
+    return strncmp(path, mount, len) == 0 && (path[len] == '\0' || path[len] == '/');
+}
+
+/* Returns true if the process referenced by the /proc/<pid> dir fd uses the mount through its cwd, root, exe,
+ * open files or memory mappings. */
+static bool
+process_uses_mount(int proc_fd, const char* mount) {
+    char buf[PATH_MAX];
+    const char* links[] = {"cwd", "root", "exe"};
+
+    for (size_t i = 0; i < sizeof(links) / sizeof(links[0]); i++) {
+        ssize_t n = readlinkat(proc_fd, links[i], buf, sizeof(buf) - 1);
+        if (n > 0) {
+            buf[n] = '\0';
+            if (path_in_mount(buf, mount))
+                return true;
+        }
+    }
+
+    int fd_dir_fd = openat(proc_fd, "fd", O_RDONLY | O_DIRECTORY);
+    if (fd_dir_fd != -1) {
+        DIR* fds = fdopendir(fd_dir_fd);
+        if (fds != NULL) {
+            struct dirent* e;
+            while ((e = readdir(fds)) != NULL) {
+                if (e->d_name[0] == '.')
+                    continue;
+                ssize_t n = readlinkat(fd_dir_fd, e->d_name, buf, sizeof(buf) - 1);
+                if (n > 0) {
+                    buf[n] = '\0';
+                    if (path_in_mount(buf, mount)) {
+                        closedir(fds);
+                        return true;
+                    }
+                }
+            }
+            closedir(fds);
+        } else {
+            close(fd_dir_fd);
+        }
+    }
+
+    int maps_fd = openat(proc_fd, "maps", O_RDONLY);
+    if (maps_fd != -1) {
+        FILE* maps = fdopen(maps_fd, "r");
+        if (maps != NULL) {
+            char line[PATH_MAX + 128];
+            size_t mlen = strlen(mount);
+            while (fgets(line, sizeof(line), maps) != NULL) {
+                char* hit = strstr(line, mount);
+                if (hit != NULL && (hit[mlen] == '/' || hit[mlen] == '\n' || hit[mlen] == ' ')) {
+                    fclose(maps);
+                    return true;
+                }
+            }
+            fclose(maps);
+        } else {
+            close(maps_fd);
+        }
+    }
+
+    return false;
+}
+
+/* Returns true if any process other than ourselves still uses the mount. */
+static bool
+mount_in_use(const char* mount) {
+    DIR* proc = opendir("/proc");
+    if (proc == NULL)
+        return false;
+
+    bool in_use = false;
+    struct dirent* e;
+    while (!in_use && (e = readdir(proc)) != NULL) {
+        if (e->d_name[0] < '0' || e->d_name[0] > '9')
+            continue;
+        if ((pid_t) atoi(e->d_name) == getpid())
+            continue;
+        int proc_fd = openat(dirfd(proc), e->d_name, O_RDONLY | O_DIRECTORY);
+        if (proc_fd == -1)
+            continue;
+        in_use = process_uses_mount(proc_fd, mount);
+        close(proc_fd);
+    }
+    closedir(proc);
+    return in_use;
+}
 
 static void*
 write_pipe_thread(void* arg) {
@@ -599,6 +693,22 @@ write_pipe_thread(void* arg) {
         /* Write until we block, on broken pipe, exit */
         res = write(keepalive_pipe[1], c, sizeof(c));
         if (res == -1) {
+            /* All holders of the read end are gone. Some launchers close inherited file descriptors (e.g. when
+             * they sandbox the app) while the app is still running from the mount, so only shut down once nothing
+             * uses the mount any more. Otherwise the app sees "Transport endpoint is not connected".
+             * See https://github.com/AppImage/type2-runtime/issues/144 */
+            char* real_mount = fuse_mount_path != NULL ? realpath(fuse_mount_path, NULL) : NULL;
+            if (real_mount != NULL) {
+                int idle_checks = 0;
+                while (idle_checks < 3) {
+                    if (mount_in_use(real_mount))
+                        idle_checks = 0;
+                    else
+                        idle_checks++;
+                    usleep(500 * 1000);
+                }
+                free(real_mount);
+            }
             kill(fuse_pid, SIGTERM);
             break;
         }
@@ -1722,6 +1832,8 @@ int main(int argc, char* argv[]) {
         perror("create mount dir error");
         exit(EXIT_EXECERROR);
     }
+
+    fuse_mount_path = mount_dir;
 
     if (pipe(keepalive_pipe) == -1) {
         perror("pipe error");
