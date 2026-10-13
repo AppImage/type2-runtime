@@ -46,6 +46,8 @@ The build process has been automated completely. As a user, you just need to run
 
 The resulting AppImages will end up in your current working directory.
 
+`<arch>` is one of `x86_64`, `i686`, `armhf`, `aarch64`, `riscv64` and `ppc64le`. There are no GitHub runners for the last two: the CI runs their Alpine containers emulated by QEMU (see [Emulate foreign architectures](#emulate-foreign-architectures)), which is much slower.
+
 
 ### Interactive environment
 
