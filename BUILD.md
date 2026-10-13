@@ -49,6 +49,18 @@ The resulting AppImages will end up in your current working directory.
 `<arch>` is one of `x86_64`, `i686`, `armhf`, `aarch64`, `riscv64` and `ppc64le`. There are no GitHub runners for the last two: the CI runs their Alpine containers emulated by QEMU (see [Emulate foreign architectures](#emulate-foreign-architectures)), which is much slower.
 
 
+### Architectures without Alpine Linux: big endian ppc64
+
+Alpine Linux has no big endian 64-bit PowerPC, so `ppc64` is built in a Debian ports system (the `sid` release, the only one with this architecture), with glibc and gcc instead of musl and clang, and without static PIE (`make STATIC_PIE=`). libfuse and squashfuse are built from source as for the other architectures (`scripts/common/install-dependencies.sh`); zstd, zlib and, when Debian has its static library, mimalloc come from Debian:
+
+```sh
+# in a Debian ports (sid) ppc64 system, as root, in the repository:
+> bash scripts/debian-ports/build-in-debian.sh
+```
+
+The runtime ends up in `out/runtime-ppc64`. Debian ports has no Docker images: the CI makes the system with `debootstrap` and imports it into Docker (job `build-debian-ports` of `.github/workflows/build.yaml`), and runs it with the `qemu-user-static` of Ubuntu, as the binfmt image of setup-qemu-action has no big endian ppc64.
+
+
 ### Interactive environment
 
 You can spawn a development container locally using the following command:
