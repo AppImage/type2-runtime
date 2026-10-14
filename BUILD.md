@@ -59,6 +59,7 @@ Alpine Linux has no big endian 64-bit PowerPC, so `ppc64` is built in a Debian p
 ```
 
 The runtime ends up in `out/runtime-ppc64`. Debian ports has no Docker images: the CI makes the system with `debootstrap` and imports it into Docker (job `build-debian-ports` of `.github/workflows/build.yaml`), and runs it with the `qemu-user-static` of Ubuntu, as the binfmt image of setup-qemu-action has no big endian ppc64.
+The keyring of Debian ports is the current one of the Debian package index (the pool keeps only the latest version), the runtime is signed as the others, and the release does not wait for this job: when the emulated Debian ports build fails, the other architectures are published without `runtime-ppc64`.
 
 
 ### Interactive environment

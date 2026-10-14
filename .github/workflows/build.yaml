@@ -143,9 +143,14 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y --no-install-recommends debootstrap qemu-user-static
-        # the keyring of Ubuntu is older than the key that signs sid today
-        KEYRING=debian-ports-archive-keyring_2026.02.04_all.deb
-        curl -fsSLO https://deb.debian.org/debian/pool/main/d/debian-ports-archive-keyring/$KEYRING
+        # the keyring of Ubuntu is older than the key that signs sid today. The pool of
+        # Debian keeps only the current version of the package: its file name comes
+        # from the package index, so that a new upload of the keyring breaks nothing
+        POOL=$(curl -fsSL https://deb.debian.org/debian/dists/sid/main/binary-all/Packages.xz | xz -d \
+          | awk '/^Package: debian-ports-archive-keyring$/ { f = 1 } f && /^Filename:/ { print $2; f = 0 }')
+        test -n "$POOL"
+        KEYRING=$(basename "$POOL")
+        curl -fsSLO "https://deb.debian.org/debian/$POOL"
         dpkg-deb -x $KEYRING keyring
         # the keyring goes into the system too, for its apt-get update
         sudo debootstrap --arch=${{ matrix.debian_arch }} --variant=minbase \
@@ -161,6 +166,16 @@ jobs:
           bash scripts/debian-ports/build-in-debian.sh
         sudo chown -R "$(id -u):$(id -g)" out
 
+    - name: Sign
+      env:
+        SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+      # as in the build job: skipped without the secret (pull requests from forks)
+      if: ${{ env.SIGNING_KEY != '' }}
+      run: |
+        find out
+        scripts/sign.sh out/runtime-*
+        cp signing-pubkey.asc out/
+
     - uses: actions/upload-artifact@v7
       with:
         name: artifacts ${{ matrix.appimage_arch }}
@@ -172,6 +187,10 @@ jobs:
     needs:
       - build
       - build-debian-ports
+    # Debian ports is unstable by nature and its job runs emulated for hours: when
+    # it fails, the release still goes out with the other architectures (the
+    # artifacts of a failed job are not there to upload)
+    if: ${{ !cancelled() && needs.build.result == 'success' }}
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v8
