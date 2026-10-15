@@ -57,6 +57,7 @@ extern int sqfs_opt_proc(void* data, const char* arg, int key, struct fuse_args*
 #include <unistd.h>
 #include <pthread.h>
 #include <stdbool.h>
+#include <time.h>
 #include <errno.h>
 #include <sys/wait.h>
 #include <fnmatch.h>
@@ -683,6 +684,55 @@ mount_in_use(const char* mount) {
     return in_use;
 }
 
+/* While the mount is in use, poll with exponential backoff between these bounds: a running app keeps the mount
+ * busy for a long time, so there is no point in scanning /proc often, but the cap keeps the reaction time to the
+ * app's exit short. */
+#define MOUNT_POLL_MIN_USEC (100 * 1000)
+#define MOUNT_POLL_MAX_USEC (2 * 1000 * 1000)
+/* The mount must stay unused for this long before it is torn down. This bridges the gap in which a launcher
+ * (e.g. a shell script or sandbox wrapper) has exited and the next process that uses the mount has not started
+ * yet, and avoids tearing the mount down in the middle of such a handover. */
+#define MOUNT_QUIET_USEC (1000 * 1000)
+
+static long
+elapsed_usec(const struct timespec* since) {
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    return (now.tv_sec - since->tv_sec) * 1000000L + (now.tv_nsec - since->tv_nsec) / 1000L;
+}
+
+/* Blocks until no other process uses the mount for MOUNT_QUIET_USEC. Returns immediately if the mount path cannot
+ * be resolved, as there is nothing to watch then. */
+static void
+wait_until_mount_unused(void) {
+    char* real_mount = fuse_mount_path != NULL ? realpath(fuse_mount_path, NULL) : NULL;
+    if (real_mount == NULL)
+        return;
+
+    useconds_t poll_usec = MOUNT_POLL_MIN_USEC;
+    struct timespec idle_since;
+    bool idle = false;
+
+    while (1) {
+        if (mount_in_use(real_mount)) {
+            idle = false;
+            usleep(poll_usec);
+            poll_usec = poll_usec * 2 > MOUNT_POLL_MAX_USEC ? MOUNT_POLL_MAX_USEC : poll_usec * 2;
+        } else {
+            if (!idle) {
+                clock_gettime(CLOCK_MONOTONIC, &idle_since);
+                idle = true;
+            }
+            if (elapsed_usec(&idle_since) >= MOUNT_QUIET_USEC)
+                break;
+            /* Probe quickly while idle so the quiet period is checked with fine granularity. */
+            poll_usec = MOUNT_POLL_MIN_USEC;
+            usleep(poll_usec);
+        }
+    }
+    free(real_mount);
+}
+
 static void*
 write_pipe_thread(void* arg) {
     char c[32];
@@ -697,18 +747,7 @@ write_pipe_thread(void* arg) {
              * they sandbox the app) while the app is still running from the mount, so only shut down once nothing
              * uses the mount any more. Otherwise the app sees "Transport endpoint is not connected".
              * See https://github.com/AppImage/type2-runtime/issues/144 */
-            char* real_mount = fuse_mount_path != NULL ? realpath(fuse_mount_path, NULL) : NULL;
-            if (real_mount != NULL) {
-                int idle_checks = 0;
-                while (idle_checks < 3) {
-                    if (mount_in_use(real_mount))
-                        idle_checks = 0;
-                    else
-                        idle_checks++;
-                    usleep(500 * 1000);
-                }
-                free(real_mount);
-            }
+            wait_until_mount_unused();
             kill(fuse_pid, SIGTERM);
             break;
         }
