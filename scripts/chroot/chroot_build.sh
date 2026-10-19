@@ -55,7 +55,6 @@ cd -
 #############################################
 
 sudo cp -r "$repo_root_dir"/src miniroot/src
-sudo cp -r "$repo_root_dir"/patches miniroot/patches
 
 sudo mount -o bind /dev miniroot/dev
 sudo mount -t proc none miniroot/proc

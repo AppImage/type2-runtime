@@ -12,10 +12,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# store current file's path
-# needed to determine the path of the patches
-this_dir="$(readlink -f "$(dirname "${BASH_SOURCE[0]}")")"
-
 cd "$tmpdir"
 
 # keep the random tmpdir path out of the debug info, it would end up in the runtime's build ID
@@ -25,7 +21,6 @@ wget https://github.com/libfuse/libfuse/releases/download/fuse-3.15.0/fuse-3.15.
 echo "70589cfd5e1cff7ccd6ac91c86c01be340b227285c5e200baa284e401eea2ca0  fuse-3.15.0.tar.xz" | sha256sum -c -
 tar xf fuse-3.*.tar.xz
 pushd fuse-3*/
-patch -p1 < "$this_dir"/../../patches/libfuse/mount.c.diff
 mkdir build
 cd build
 CFLAGS="$prefix_map_flags" meson setup --prefix=/usr ..

@@ -62,10 +62,6 @@ extern int sqfs_opt_proc(void* data, const char* arg, int key, struct fuse_args*
 #include <sys/mman.h>
 #include <stdint.h>
 #include <libgen.h>
-#include <dirent.h>
-#include <ctype.h>
-
-const char* fusermountPath = NULL;
 
 typedef struct {
     uint32_t lo;
@@ -412,106 +408,6 @@ int appimage_print_binary(char* fname, unsigned long offset, unsigned long lengt
 	free(data);
 
 	return 0;
-}
-
-char* find_fusermount(bool verbose) {
-    char* fusermount_base = "fusermount";
-
-    char* fusermount_path = getenv("PATH");
-    if (fusermount_path == NULL) {
-        return NULL;
-    }
-
-    char* path_copy = strdup(fusermount_path);
-    char* dir = strtok(path_copy, ":");
-
-    while (dir != NULL) {
-        DIR* dir_ptr = opendir(dir);
-        if (dir_ptr == NULL) {
-            dir = strtok(NULL, ":");
-            continue;
-        }
-
-        struct dirent* entry;
-        while ((entry = readdir(dir_ptr)) != NULL) {
-            // Check if the entry starts with "fusermount"
-            if (strncmp(entry->d_name, fusermount_base, 10) == 0) {
-                // Check if the rest of the entry is a digit
-                char* suffix = entry->d_name + 10;
-                int j = 0;
-                while (suffix[j] != '\0' && isdigit(suffix[j])) {
-                    j++;
-                }
-
-                if (suffix[j] == '\0') {
-                    // Construct the full path of the entry
-                    char* fusermount_full_path = malloc(strlen(dir) + strlen(entry->d_name) + 2);
-                    sprintf(fusermount_full_path, "%s/%s", dir, entry->d_name);
-
-                    // Check if the binary is setuid root
-                    struct stat sb;
-                    if (stat(fusermount_full_path, &sb) == -1) {
-                        perror("stat");
-                        free(fusermount_full_path);
-                        continue;
-                    }
-
-                    if (sb.st_uid != 0 || (sb.st_mode & S_ISUID) == 0) {
-                        if (verbose) {
-                            printf("Not setuid root, skipping...\n");
-                        }
-                        free(fusermount_full_path);
-                        continue;
-                    }
-
-                    if (verbose) {
-                        printf("Found setuid root executable: %s\n", fusermount_full_path);
-                    }
-
-                    pid_t pid = fork();
-                    if (pid == -1) {
-                        perror("fork");
-                        free(fusermount_full_path);
-                        continue;
-                    }
-
-                    if (pid == 0) {
-                        // Child process
-
-                        // close stdout and stderr if not in verbose mode
-                        if (!verbose) {
-                            close(1);
-                            close(2);
-                        }
-
-                        char* args[] = {fusermount_full_path, "--version", NULL};
-                        execvp(fusermount_full_path, args);
-                        // If execvp returns, it means the executable was not found
-                        exit(1);
-                    } else {
-                        // Parent process
-                        int status;
-                        waitpid(pid, &status, 0);
-
-                        if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
-                            // The executable was found and executed successfully
-                            closedir(dir_ptr);
-                            free(path_copy);
-                            return fusermount_full_path;
-                        }
-
-                        free(fusermount_full_path);
-                    }
-                }
-            }
-        }
-
-        closedir(dir_ptr);
-        dir = strtok(NULL, ":");
-    }
-
-    free(path_copy);
-    return NULL;
 }
 
 /* Exit status to use when launching an AppImage fails.
@@ -1736,20 +1632,6 @@ int main(int argc, char* argv[]) {
 
     if (pid == 0) {
         /* in child */
-
-        fusermountPath = getenv("FUSERMOUNT_PROG");
-        if (fusermountPath == NULL) {
-            char* new_prog = find_fusermount(verbose);
-            if (new_prog != NULL) {
-                setenv("FUSERMOUNT_PROG", new_prog, 1);
-                if (verbose) {
-                    fprintf(stderr, "FUSERMOUNT_PROG set to %s\n", new_prog);
-                }
-                free(new_prog);
-            } else {
-                printf("Error: No suitable fusermount binary found on the $PATH\n");
-            }
-        }
 
         char* child_argv[5];
 
