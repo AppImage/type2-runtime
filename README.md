@@ -1,8 +1,10 @@
-# type2-runtime ![GitHub Actions](https://github.com/AppImage/type2-runtime/actions/workflows/build.yaml/badge.svg)
+# type2-runtime ![GitHub Actions](https://github.com/AppImage/type2-runtime/actions/workflows/build.yaml/badge.svg) ![GitHub Actions (FreeBSD)](https://github.com/AppImage/type2-runtime/actions/workflows/build-freebsd.yaml/badge.svg)
 
 The runtime is the executable part of every AppImage. It mounts the payload via FUSE and executes the entrypoint.
 
 This repository builds a statically linked runtime for type-2 AppImages in a [Alpine Linux](https://alpinelinux.org/) chroot with [musl libc](https://www.musl-libc.org/).
+
+A separate, natively built runtime is provided for FreeBSD.
 
 Since the runtime is linked statically, libfuse2 is no longer required on the target system.
 
