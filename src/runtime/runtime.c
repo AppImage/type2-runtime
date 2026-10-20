@@ -724,14 +724,17 @@ void portable_option(const char* arg, const char* appimage_path, const char* nam
         char portable_dir[PATH_MAX];
         char fullpath[PATH_MAX];
 
-        ssize_t length = readlink(appimage_path, fullpath, sizeof(fullpath));
+        ssize_t length = readlink(appimage_path, fullpath, sizeof(fullpath) - 1);
         if (length < 0) {
             fprintf(stderr, "Error getting realpath for %s\n", appimage_path);
             exit(EXIT_FAILURE);
         }
         fullpath[length] = '\0';
 
-        sprintf(portable_dir, "%s.%s", fullpath, name);
+        if (snprintf(portable_dir, sizeof(portable_dir), "%s.%s", fullpath, name) >= (int) sizeof(portable_dir)) {
+            fprintf(stderr, "Path of the portable %s directory too long: %s.%s\n", name, fullpath, name);
+            exit(EXIT_FAILURE);
+        }
         if (!mkdir(portable_dir, S_IRWXU))
             fprintf(stderr, "Portable %s directory created at %s\n", name, portable_dir);
         else
@@ -1511,7 +1514,7 @@ int main(int argc, char* argv[]) {
     if (arg && strcmp(arg, "appimage-help") == 0) {
         char fullpath[PATH_MAX];
 
-        ssize_t length = readlink(appimage_path, fullpath, sizeof(fullpath));
+        ssize_t length = readlink(appimage_path, fullpath, sizeof(fullpath) - 1);
         if (length < 0) {
             fprintf(stderr, "Error getting realpath for %s\n", appimage_path);
             exit(EXIT_EXECERROR);
@@ -1561,7 +1564,7 @@ int main(int argc, char* argv[]) {
 
     if (getenv("TARGET_APPIMAGE") == NULL) {
         // If we are operating on this file itself
-        ssize_t len = readlink(appimage_path, fullpath, sizeof(fullpath));
+        ssize_t len = readlink(appimage_path, fullpath, sizeof(fullpath) - 1);
         if (len < 0) {
             perror("Failed to obtain absolute path");
             exit(EXIT_EXECERROR);
