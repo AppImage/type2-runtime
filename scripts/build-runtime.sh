@@ -17,7 +17,8 @@ cp -R src "$build_dir"/
 pushd "$build_dir"
 
 pushd src/runtime/
-make -j"$(nproc)" runtime
+# RUNTIME_MAKE_ARGS: extra make variables, e.g. CC=gcc STATIC_PIE= for glibc builds
+make -j"$(nproc)" runtime ${RUNTIME_MAKE_ARGS:-}
 
 file runtime
 
@@ -42,6 +43,12 @@ elif [[ "$runtime" =~ EABI5 ]]; then
     architecture=armhf
 elif [[ "$runtime" =~ x86-64 ]]; then
     architecture=x86_64
+elif [[ "$runtime" =~ RISC-V ]]; then
+    architecture=riscv64
+elif [[ "$runtime" =~ "64-bit MSB" ]] && [[ "$runtime" =~ PowerPC ]]; then
+    architecture=ppc64
+elif [[ "$runtime" =~ "64-bit LSB" ]] && [[ "$runtime" =~ PowerPC ]]; then
+    architecture=ppc64le
 else
     echo "Unsupported architecture: ${runtime#* }"
     exit 2
