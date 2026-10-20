@@ -741,8 +741,9 @@ void portable_option(const char* arg, const char* appimage_path, const char* nam
     }
 }
 
+// if private_prefix is set, the prefix directory keeps mode 0700 instead of getting the mode of the image's root
 bool extract_appimage(const char* const appimage_path, const char* const _prefix, const char* const _pattern,
-                      const bool overwrite, const bool verbose) {
+                      const bool overwrite, const bool verbose, const bool private_prefix) {
     sqfs_err err = SQFS_OK;
     sqfs_traverse trv;
     sqfs fs;
@@ -776,9 +777,24 @@ bool extract_appimage(const char* const appimage_path, const char* const _prefix
         return false;
     }
 
+    // directories are created with mode 0700 while extracting, their stored modes are applied after extraction
+    // there cannot be more directories than inodes
+    struct dir_mode {
+        char* path;
+        mode_t mode;
+    };
+    struct dir_mode* dir_modes = calloc(fs.sb.inodes, sizeof(struct dir_mode));
+    size_t dir_modes_count = 0;
+    if (dir_modes == NULL) {
+        fprintf(stderr, "Failed allocating memory to track directory modes\n");
+        free(created_inode);
+        return false;
+    }
+
     if ((err = sqfs_traverse_open(&trv, &fs, sqfs_inode_root(&fs)))) {
         fprintf(stderr, "sqfs_traverse_open error\n");
         free(created_inode);
+        free(dir_modes);
         return false;
     }
 
@@ -786,6 +802,22 @@ bool extract_appimage(const char* const appimage_path, const char* const _prefix
 
     while (sqfs_traverse_next(&trv, &err)) {
         if (!trv.dir_end) {
+            strcpy(prefixed_path_to_extract, "");
+            strcat(strcat(prefixed_path_to_extract, prefix), trv.path);
+
+            // remember the stored mode of every directory, including the parents of paths matching the pattern
+            if (sqfs_dentry_is_dir(&trv.entry) && dir_modes_count < fs.sb.inodes) {
+                sqfs_inode dir_inode;
+                if (sqfs_inode_get(&fs, &dir_inode, trv.entry.inode)) {
+                    fprintf(stderr, "sqfs_inode_get error\n");
+                    rv = false;
+                    break;
+                }
+                dir_modes[dir_modes_count].path = strdup(prefixed_path_to_extract);
+                dir_modes[dir_modes_count].mode = dir_inode.base.mode & 07777;
+                dir_modes_count++;
+            }
+
             if (_pattern == NULL || fnmatch(_pattern, trv.path, FNM_FILE_NAME | FNM_LEADING_DIR) == 0) {
                 // fprintf(stderr, "trv.path: %s\n", trv.path);
                 // fprintf(stderr, "sqfs_inode_id: %lu\n", trv.entry.inode);
@@ -797,8 +829,6 @@ bool extract_appimage(const char* const appimage_path, const char* const _prefix
                 }
                 // fprintf(stderr, "inode.base.inode_type: %i\n", inode.base.inode_type);
                 // fprintf(stderr, "inode.xtra.reg.file_size: %lu\n", inode.xtra.reg.file_size);
-                strcpy(prefixed_path_to_extract, "");
-                strcat(strcat(prefixed_path_to_extract, prefix), trv.path);
 
                 if (verbose)
                     fprintf(stdout, "%s\n", prefixed_path_to_extract);
@@ -914,6 +944,25 @@ bool extract_appimage(const char* const appimage_path, const char* const _prefix
         free(created_inode[i]);
     }
     free(created_inode);
+
+    // apply the stored directory modes only now, as a mode without owner write permission would have prevented
+    // extracting the directory's contents
+    // deepest directories first, so that a parent's mode cannot prevent changing the mode of its subdirectories
+    // directories that were not extracted because they do not match the pattern do not exist (ENOENT)
+    for (size_t i = dir_modes_count; i > 0; i--) {
+        struct dir_mode* dir = &dir_modes[i - 1];
+        if (chmod(dir->path, dir->mode) != 0 && errno != ENOENT)
+            fprintf(stderr, "chmod: %s: %s\n", dir->path, strerror(errno));
+        free(dir->path);
+    }
+    free(dir_modes);
+
+    if (!private_prefix) {
+        sqfs_inode root_inode;
+        if (sqfs_inode_get(&fs, &root_inode, sqfs_inode_root(&fs)) == SQFS_OK &&
+            chmod(prefix, root_inode.base.mode & 07777) != 0)
+            fprintf(stderr, "chmod: %s: %s\n", prefix, strerror(errno));
+    }
 
     if (err != SQFS_OK) {
         fprintf(stderr, "sqfs_traverse_next error\n");
@@ -1549,7 +1598,7 @@ int main(int argc, char* argv[]) {
             exit(1);
         }
 
-        if (!extract_appimage(appimage_path, "squashfs-root/", pattern, true, verbose)) {
+        if (!extract_appimage(appimage_path, "squashfs-root/", pattern, true, verbose, false)) {
             exit(1);
         }
 
@@ -1610,7 +1659,7 @@ int main(int argc, char* argv[]) {
         strcat(prefix, hexlified_digest);
         free(hexlified_digest);
 
-        if (!extract_appimage(appimage_path, prefix, NULL, false, verbose)) {
+        if (!extract_appimage(appimage_path, prefix, NULL, false, verbose, true)) {
             fprintf(stderr, "Failed to extract AppImage\n");
             exit(EXIT_EXECERROR);
         }
